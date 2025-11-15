@@ -1,0 +1,33 @@
+{
+  "name": "alznexus-agentic-autonomy-platform",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/backend/alznexus_adworkbench_proxy/main.py",
+  "scripts": {
+    "start": "node src/backend/alznexus_adworkbench_proxy/main.py"
+  },
+  "dependencies": {
+    "fastapi": "latest",
+    "uvicorn": "latest",
+    "sqlalchemy": "latest",
+    "psycopg2-binary": "latest",
+    "pydantic": "latest",
+    "pydantic-settings": "latest",
+    "celery": "latest",
+    "redis": "latest",
+    "requests": "latest",
+    "fastapi-limiter": "latest",
+    "pytest": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "typescript": "latest",
+    "tailwindcss": "latest",
+    "autoprefixer": "latest",
+    "postcss": "latest",
+    "react-router-dom": "latest",
+    "axios": "latest",
+    "vite": "latest",
+    "dompurify": "latest",
+    "alznexus_audit_trail": "latest"
+  }
+}
