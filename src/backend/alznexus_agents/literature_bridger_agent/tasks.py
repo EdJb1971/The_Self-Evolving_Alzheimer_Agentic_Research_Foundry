@@ -61,151 +61,151 @@ def bridge_literature_task(self, agent_task_id: int):
         try:
             db: Session = SessionLocal()
             try:
-        db_agent_task = crud.get_agent_task(db, agent_task_id)
-        if not db_agent_task:
-            raise ValueError(f"Agent task with ID {agent_task_id} not found.")
+                db_agent_task = crud.get_agent_task(db, agent_task_id)
+                if not db_agent_task:
+                    raise ValueError(f"Agent task with ID {agent_task_id} not found.")
 
-        agent_id = db_agent_task.agent_id
+                agent_id = db_agent_task.agent_id
 
-        crud.update_agent_task_status(db, agent_task_id, "IN_PROGRESS")
-        crud.update_agent_state(db, agent_id, current_task_id=agent_task_id)
-        log_audit_event(
-            entity_type="AGENT",
-            entity_id=f"{agent_id}-{agent_task_id}",
-            event_type="LITERATURE_BRIDGING_STARTED",
-            description=f"Agent {agent_id} started literature bridging task {agent_task_id}: {db_agent_task.task_description}",
-            metadata=db_agent_task.model_dump()
-        )
+                crud.update_agent_task_status(db, agent_task_id, "IN_PROGRESS")
+                crud.update_agent_state(db, agent_id, current_task_id=agent_task_id)
+                log_audit_event(
+                    entity_type="AGENT",
+                    entity_id=f"{agent_id}-{agent_task_id}",
+                    event_type="LITERATURE_BRIDGING_STARTED",
+                    description=f"Agent {agent_id} started literature bridging task {agent_task_id}: {db_agent_task.task_description}",
+                    metadata=db_agent_task.model_dump()
+                )
 
-        # COMP-015: Simulate scanning scientific literature and synthesizing connections
-        adworkbench_headers = {"X-API-Key": ADWORKBENCH_API_KEY, "Content-Type": "application/json"}
+                # COMP-015: Simulate scanning scientific literature and synthesizing connections
+                adworkbench_headers = {"X-API-Key": ADWORKBENCH_API_KEY, "Content-Type": "application/json"}
 
-        query_text = f"Retrieve scientific literature for bridging connections related to: {db_agent_task.task_description}"
-        adworkbench_query_payload = {"query_text": query_text}
+                query_text = f"Retrieve scientific literature for bridging connections related to: {db_agent_task.task_description}"
+                adworkbench_query_payload = {"query_text": query_text}
 
-        log_audit_event(
-            entity_type="AGENT",
-            entity_id=f"{agent_id}-{agent_task_id}",
-            event_type="ADWORKBENCH_QUERY_INITIATED",
-            description=f"Agent {agent_id} querying AD Workbench for literature data: {query_text}",
-            metadata={"query_text": query_text}
-        )
+                log_audit_event(
+                    entity_type="AGENT",
+                    entity_id=f"{agent_id}-{agent_task_id}",
+                    event_type="ADWORKBENCH_QUERY_INITIATED",
+                    description=f"Agent {agent_id} querying AD Workbench for literature data: {query_text}",
+                    metadata={"query_text": query_text}
+                )
 
-        adworkbench_response = requests.post(
-            f"{ADWORKBENCH_PROXY_URL}/adworkbench/query",
-            headers=adworkbench_headers,
-            json=adworkbench_query_payload
-        )
-        adworkbench_response.raise_for_status()
-        query_status_response = adworkbench_response.json()
-        adworkbench_query_id = query_status_response["id"]
+                adworkbench_response = requests.post(
+                    f"{ADWORKBENCH_PROXY_URL}/adworkbench/query",
+                    headers=adworkbench_headers,
+                    json=adworkbench_query_payload
+                )
+                adworkbench_response.raise_for_status()
+                query_status_response = adworkbench_response.json()
+                adworkbench_query_id = query_status_response["id"]
 
-        # TODO: CQ-LB-001: Replace with actual asynchronous calls/polling mechanism for AD Workbench query. The blocking time.sleep() has been removed.
-        # A proper async implementation would involve storing adworkbench_query_id and having a separate task or service check for completion.
-        query_result_response = requests.get(
-            f"{ADWORKBENCH_PROXY_URL}/adworkbench/query/{adworkbench_query_id}/status",
-            headers=adworkbench_headers
-        )
-        query_result_response.raise_for_status()
-        final_query_status = query_result_response.json()
+                # TODO: CQ-LB-001: Replace with actual asynchronous calls/polling mechanism for AD Workbench query. The blocking time.sleep() has been removed.
+                # A proper async implementation would involve storing adworkbench_query_id and having a separate task or service check for completion.
+                query_result_response = requests.get(
+                    f"{ADWORKBENCH_PROXY_URL}/adworkbench/query/{adworkbench_query_id}/status",
+                    headers=adworkbench_headers
+                )
+                query_result_response.raise_for_status()
+                final_query_status = query_result_response.json()
 
-        if final_query_status["status"] != "COMPLETED":
-            raise Exception(f"AD Workbench query for literature data failed or timed out: {final_query_status['status']}")
+                if final_query_status["status"] != "COMPLETED":
+                    raise Exception(f"AD Workbench query for literature data failed or timed out: {final_query_status['status']}")
+                
+                result_data_str = final_query_status["result_data"]
+                if len(result_data_str.encode('utf-8')) > MAX_RESULT_DATA_SIZE_BYTES:
+                    raise ValueError(f"AD Workbench query result_data size exceeds {MAX_RESULT_DATA_SIZE_BYTES} bytes.")
+                raw_data_summary = json.loads(result_data_str)
         
-        result_data_str = final_query_status["result_data"]
-        if len(result_data_str.encode('utf-8')) > MAX_RESULT_DATA_SIZE_BYTES:
-            raise ValueError(f"AD Workbench query result_data size exceeds {MAX_RESULT_DATA_SIZE_BYTES} bytes.")
-        raw_data_summary = json.loads(result_data_str)
-        
-        log_audit_event(
-            entity_type="AGENT",
-            entity_id=f"{agent_id}-{agent_task_id}",
-            event_type="ADWORKBENCH_QUERY_COMPLETED",
-            description=f"Agent {agent_id} received literature data from AD Workbench query {adworkbench_query_id}.",
-            metadata={"adworkbench_query_id": adworkbench_query_id, "data_summary": raw_data_summary.get("data", [])[:1]}
-        )
+                log_audit_event(
+                    entity_type="AGENT",
+                    entity_id=f"{agent_id}-{agent_task_id}",
+                    event_type="ADWORKBENCH_QUERY_COMPLETED",
+                    description=f"Agent {agent_id} received literature data from AD Workbench query {adworkbench_query_id}.",
+                    metadata={"adworkbench_query_id": adworkbench_query_id, "data_summary": raw_data_summary.get("data", [])[:1]}
+                )
 
-        # TODO: CQ-LB-002: Replace with actual literature analysis and synthesis (LLM interaction). The blocking time.sleep() has been removed.
-        literature_connections = {
-            "topic": db_agent_task.task_description,
-            "bridged_areas": [
-                {"area_a": "Neuroinflammation", "area_b": "Gut Microbiome", "connection": "Emerging evidence links gut dysbiosis to neuroinflammatory pathways in AD.", "references": ["PMID:12345", "PMID:67890"]},
-                {"area_a": "Amyloid Beta", "area_b": "Sleep Disorders", "connection": "Poor sleep quality accelerates amyloid-beta accumulation and impairs clearance.", "references": ["PMID:11223", "PMID:44556"]}
-            ],
-            "summary": f"Synthesized connections between {len(raw_data_summary.get('data', []))} literature entries."
-        }
+                # TODO: CQ-LB-002: Replace with actual literature analysis and synthesis (LLM interaction). The blocking time.sleep() has been removed.
+                literature_connections = {
+                    "topic": db_agent_task.task_description,
+                    "bridged_areas": [
+                        {"area_a": "Neuroinflammation", "area_b": "Gut Microbiome", "connection": "Emerging evidence links gut dysbiosis to neuroinflammatory pathways in AD.", "references": ["PMID:12345", "PMID:67890"]},
+                        {"area_a": "Amyloid Beta", "area_b": "Sleep Disorders", "connection": "Poor sleep quality accelerates amyloid-beta accumulation and impairs clearance.", "references": ["PMID:11223", "PMID:44556"]}
+                    ],
+                    "summary": f"Synthesized connections between {len(raw_data_summary.get('data', []))} literature entries."
+                }
 
-        insight_name_val = f"Literature Bridge: {db_agent_task.task_description}"
-        insight_publish_request_obj = schemas.InsightPublishRequest(
-            insight_name=insight_name_val,
-            insight_description=f"Automatically synthesized connections between disparate research areas for: {db_agent_task.task_description}.",
-            data_source_ids=[f"adworkbench_query_{adworkbench_query_id}"],
-            payload=literature_connections,
-            tags=["literature_bridging", "research_synthesis", agent_id]
-        )
-        insight_payload = insight_publish_request_obj.model_dump_json()
+                insight_name_val = f"Literature Bridge: {db_agent_task.task_description}"
+                insight_publish_request_obj = schemas.InsightPublishRequest(
+                    insight_name=insight_name_val,
+                    insight_description=f"Automatically synthesized connections between disparate research areas for: {db_agent_task.task_description}.",
+                    data_source_ids=[f"adworkbench_query_{adworkbench_query_id}"],
+                    payload=literature_connections,
+                    tags=["literature_bridging", "research_synthesis", agent_id]
+                )
+                insight_payload = insight_publish_request_obj.model_dump_json()
 
-        log_audit_event(
-            entity_type="AGENT",
-            entity_id=f"{agent_id}-{agent_task_id}",
-            event_type="PUBLISHING_LITERATURE_INSIGHT",
-            description=f"Agent {agent_id} publishing literature bridging insight.",
-            metadata={"insight_name": insight_name_val}
-        )
+                log_audit_event(
+                    entity_type="AGENT",
+                    entity_id=f"{agent_id}-{agent_task_id}",
+                    event_type="PUBLISHING_LITERATURE_INSIGHT",
+                    description=f"Agent {agent_id} publishing literature bridging insight.",
+                    metadata={"insight_name": insight_name_val}
+                )
 
-        publish_response = requests.post(
-            f"{ADWORKBENCH_PROXY_URL}/adworkbench/publish-insight",
-            headers=adworkbench_headers,
-            data=insight_payload
-        )
-        publish_response.raise_for_status()
-        publish_result = publish_response.json()
+                publish_response = requests.post(
+                    f"{ADWORKBENCH_PROXY_URL}/adworkbench/publish-insight",
+                    headers=adworkbench_headers,
+                    data=insight_payload
+                )
+                publish_response.raise_for_status()
+                publish_result = publish_response.json()
 
-        mock_result = {
-            "status": "success",
-            "agent_output": f"Literature bridging completed for task {agent_task_id}.",
-            "literature_connections": literature_connections,
-            "published_insight_id": publish_result.get("insight_id")
-        }
+                mock_result = {
+                    "status": "success",
+                    "agent_output": f"Literature bridging completed for task {agent_task_id}.",
+                    "literature_connections": literature_connections,
+                    "published_insight_id": publish_result.get("insight_id")
+                }
 
-        crud.update_agent_task_status(db, agent_task_id, "COMPLETED", mock_result)
-        crud.update_agent_state(db, agent_id, current_task_id=None)
-        log_audit_event(
-            entity_type="AGENT",
-            entity_id=f"{agent_id}-{agent_task_id}",
-            event_type="LITERATURE_BRIDGING_COMPLETED",
-            description=f"Agent {agent_id} completed literature bridging task {agent_task_id} and published insight.",
-            metadata={"task_result": mock_result}
-        )
-        return {"agent_task_id": agent_task_id, "status": "COMPLETED", "result": mock_result}
-    except requests.exceptions.RequestException as e:
-        error_message = f"AD Workbench Proxy or external API call failed: {e}"
-        crud.update_agent_task_status(db, agent_task_id, "FAILED", {"error": error_message})
-        crud.update_agent_state(db, agent_id, current_task_id=None)
-        log_audit_event(
-            entity_type="AGENT",
-            entity_id=f"{agent_id}-{agent_task_id}",
-            event_type="LITERATURE_BRIDGING_FAILED",
-            description=f"Agent {agent_id} failed to bridge literature for task {agent_task_id}: {error_message}",
-            metadata={"error": error_message}
-        )
-        self.update_state(state='FAILURE', meta={'exc_type': type(e).__name__, 'exc_message': error_message})
-        raise
-    except Exception as e:
-        error_message = str(e)
-        crud.update_agent_task_status(db, agent_task_id, "FAILED", {"error": error_message})
-        crud.update_agent_state(db, agent_id, current_task_id=None)
-        log_audit_event(
-            entity_type="AGENT",
-            entity_id=f"{agent_id}-{agent_task_id}",
-            event_type="LITERATURE_BRIDGING_FAILED",
-            description=f"Agent {agent_id} failed to bridge literature for task {agent_task_id}: {error_message}",
-            metadata={"error": error_message}
-        )
-        self.update_state(state='FAILURE', meta={'exc_type': type(e).__name__, 'exc_message': error_message})
-        raise
-    finally:
-        db.close()
+                crud.update_agent_task_status(db, agent_task_id, "COMPLETED", mock_result)
+                crud.update_agent_state(db, agent_id, current_task_id=None)
+                log_audit_event(
+                    entity_type="AGENT",
+                    entity_id=f"{agent_id}-{agent_task_id}",
+                    event_type="LITERATURE_BRIDGING_COMPLETED",
+                    description=f"Agent {agent_id} completed literature bridging task {agent_task_id} and published insight.",
+                    metadata={"task_result": mock_result}
+                )
+                return {"agent_task_id": agent_task_id, "status": "COMPLETED", "result": mock_result}
+            except requests.exceptions.RequestException as e:
+                error_message = f"AD Workbench Proxy or external API call failed: {e}"
+                crud.update_agent_task_status(db, agent_task_id, "FAILED", {"error": error_message})
+                crud.update_agent_state(db, agent_id, current_task_id=None)
+                log_audit_event(
+                    entity_type="AGENT",
+                    entity_id=f"{agent_id}-{agent_task_id}",
+                    event_type="LITERATURE_BRIDGING_FAILED",
+                    description=f"Agent {agent_id} failed to bridge literature for task {agent_task_id}: {error_message}",
+                    metadata={"error": error_message}
+                )
+                self.update_state(state='FAILURE', meta={'exc_type': type(e).__name__, 'exc_message': error_message})
+                raise
+            except Exception as e:
+                error_message = str(e)
+                crud.update_agent_task_status(db, agent_task_id, "FAILED", {"error": error_message})
+                crud.update_agent_state(db, agent_id, current_task_id=None)
+                log_audit_event(
+                    entity_type="AGENT",
+                    entity_id=f"{agent_id}-{agent_task_id}",
+                    event_type="LITERATURE_BRIDGING_FAILED",
+                    description=f"Agent {agent_id} failed to bridge literature for task {agent_task_id}: {error_message}",
+                    metadata={"error": error_message}
+                )
+                self.update_state(state='FAILURE', meta={'exc_type': type(e).__name__, 'exc_message': error_message})
+                raise
+            finally:
+                db.close()
         except Exception as e:
             attempt += 1
             if attempt <= max_retries:

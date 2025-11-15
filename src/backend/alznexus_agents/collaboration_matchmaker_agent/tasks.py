@@ -64,195 +64,192 @@ def match_collaboration_task(self, agent_task_id: int):
     while attempt <= max_retries:
         try:
             db: Session = SessionLocal()
-            try:
-        db_agent_task = crud.get_agent_task(db, agent_task_id)
-        if not db_agent_task:
-            raise ValueError(f"Agent task with ID {agent_task_id} not found.")
+            db_agent_task = crud.get_agent_task(db, agent_task_id)
+            if not db_agent_task:
+                raise ValueError(f"Agent task with ID {agent_task_id} not found.")
 
-        agent_id = db_agent_task.agent_id
+            agent_id = db_agent_task.agent_id
 
-        crud.update_agent_task_status(db, agent_task_id, "IN_PROGRESS")
-        crud.update_agent_state(db, agent_id, current_task_id=agent_task_id)
-        log_audit_event(
-            entity_type="AGENT",
-            entity_id=f"{agent_id}-{agent_task_id}",
-            event_type="COLLABORATION_MATCHMAKING_STARTED",
-            description=f"Agent {agent_id} started collaboration matchmaking task {agent_task_id}: {db_agent_task.task_description}",
-            metadata=db_agent_task.model_dump()
-        )
+            crud.update_agent_task_status(db, agent_task_id, "IN_PROGRESS")
+            crud.update_agent_state(db, agent_id, current_task_id=agent_task_id)
+            log_audit_event(
+                entity_type="AGENT",
+                entity_id=f"{agent_id}-{agent_task_id}",
+                event_type="COLLABORATION_MATCHMAKING_STARTED",
+                description=f"Agent {agent_id} started collaboration matchmaking task {agent_task_id}: {db_agent_task.task_description}",
+                metadata=db_agent_task.model_dump()
+            )
 
-        # COMP-016: Simulate identifying research problems and suggesting optimal collaborations
-        adworkbench_headers = {"X-API-Key": ADWORKBENCH_API_KEY, "Content-Type": "application/json"}
-        registry_headers = {"X-API-Key": AGENT_REGISTRY_API_KEY}
+            # COMP-016: Simulate identifying research problems and suggesting optimal collaborations
+            adworkbench_headers = {"X-API-Key": ADWORKBENCH_API_KEY, "Content-Type": "application/json"}
+            registry_headers = {"X-API-Key": AGENT_REGISTRY_API_KEY}
 
-        # 1. Simulate querying AD Workbench for research problems/data
-        query_text = f"Retrieve complex research problems or data gaps related to: {db_agent_task.task_description}"
-        adworkbench_query_payload = {"query_text": query_text}
+            # 1. Simulate querying AD Workbench for research problems/data
+            query_text = f"Retrieve complex research problems or data gaps related to: {db_agent_task.task_description}"
+            adworkbench_query_payload = {"query_text": query_text}
 
-        log_audit_event(
-            entity_type="AGENT",
-            entity_id=f"{agent_id}-{agent_task_id}",
-            event_type="ADWORKBENCH_QUERY_INITIATED",
-            description=f"Agent {agent_id} querying AD Workbench for research problems: {query_text}",
-            metadata={"query_text": query_text}
-        )
+            log_audit_event(
+                entity_type="AGENT",
+                entity_id=f"{agent_id}-{agent_task_id}",
+                event_type="ADWORKBENCH_QUERY_INITIATED",
+                description=f"Agent {agent_id} querying AD Workbench for research problems: {query_text}",
+                metadata={"query_text": query_text}
+            )
 
-        adworkbench_response = requests.post(
-            f"{ADWORKBENCH_PROXY_URL}/adworkbench/query",
-            headers=adworkbench_headers,
-            json=adworkbench_query_payload
-        )
-        adworkbench_response.raise_for_status()
-        query_status_response = adworkbench_response.json()
-        adworkbench_query_id = query_status_response["id"]
+            adworkbench_response = requests.post(
+                f"{ADWORKBENCH_PROXY_URL}/adworkbench/query",
+                headers=adworkbench_headers,
+                json=adworkbench_query_payload
+            )
+            adworkbench_response.raise_for_status()
+            query_status_response = adworkbench_response.json()
+            adworkbench_query_id = query_status_response["id"]
 
-        # TODO: CQ-CM-001: Replace with actual asynchronous calls/polling mechanism for AD Workbench query. The blocking time.sleep() has been removed.
-        # A proper async implementation would involve storing adworkbench_query_id and having a separate task or service check for completion.
-        query_result_response = requests.get(
-            f"{ADWORKBENCH_PROXY_URL}/adworkbench/query/{adworkbench_query_id}/status",
-            headers=adworkbench_headers
-        )
-        query_result_response.raise_for_status()
-        final_query_status = query_result_response.json()
+            # TODO: CQ-CM-001: Replace with actual asynchronous calls/polling mechanism for AD Workbench query. The blocking time.sleep() has been removed.
+            # A proper async implementation would involve storing adworkbench_query_id and having a separate task or service check for completion.
+            query_result_response = requests.get(
+                f"{ADWORKBENCH_PROXY_URL}/adworkbench/query/{adworkbench_query_id}/status",
+                headers=adworkbench_headers
+            )
+            query_result_response.raise_for_status()
+            final_query_status = query_result_response.json()
 
-        if final_query_status["status"] != "COMPLETED":
-            raise Exception(f"AD Workbench query for research problems failed or timed out: {final_query_status['status']}")
-        
-        result_data_str = final_query_status["result_data"]
-        if len(result_data_str.encode('utf-8')) > MAX_RESULT_DATA_SIZE_BYTES:
-            raise ValueError(f"AD Workbench query result_data size exceeds {MAX_RESULT_DATA_SIZE_BYTES} bytes.")
-        raw_problem_data = json.loads(result_data_str)
-        
-        log_audit_event(
-            entity_type="AGENT",
-            entity_id=f"{agent_id}-{agent_task_id}",
-            event_type="ADWORKBENCH_QUERY_COMPLETED",
-            description=f"Agent {agent_id} received research problem data from AD Workbench query {adworkbench_query_id}.",
-            metadata={"adworkbench_query_id": adworkbench_query_id, "problem_summary": raw_problem_data.get("data", [])[:1]}
-        )
+            if final_query_status["status"] != "COMPLETED":
+                raise Exception(f"AD Workbench query for research problems failed or timed out: {final_query_status['status']}")
+            
+            result_data_str = final_query_status["result_data"]
+            if len(result_data_str.encode('utf-8')) > MAX_RESULT_DATA_SIZE_BYTES:
+                raise ValueError(f"AD Workbench query result_data size exceeds {MAX_RESULT_DATA_SIZE_BYTES} bytes.")
+            raw_problem_data = json.loads(result_data_str)
+            
+            log_audit_event(
+                entity_type="AGENT",
+                entity_id=f"{agent_id}-{agent_task_id}",
+                event_type="ADWORKBENCH_QUERY_COMPLETED",
+                description=f"Agent {agent_id} received research problem data from AD Workbench query {adworkbench_query_id}.",
+                metadata={"adworkbench_query_id": adworkbench_query_id, "problem_summary": raw_problem_data.get("data", [])[:1]}
+            )
 
-        # 2. Query Agent Registry for available agents and their capabilities
-        log_audit_event(
-            entity_type="AGENT",
-            entity_id=f"{agent_id}-{agent_task_id}",
-            event_type="AGENT_REGISTRY_QUERY_INITIATED",
-            description=f"Agent {agent_id} querying Agent Registry for available agents.",
-            metadata={"registry_url": AGENT_REGISTRY_URL}
-        )
+            # 2. Query Agent Registry for available agents and their capabilities
+            log_audit_event(
+                entity_type="AGENT",
+                entity_id=f"{agent_id}-{agent_task_id}",
+                event_type="AGENT_REGISTRY_QUERY_INITIATED",
+                description=f"Agent {agent_id} querying Agent Registry for available agents.",
+                metadata={"registry_url": AGENT_REGISTRY_URL}
+            )
 
-        registry_response = requests.get(f"{AGENT_REGISTRY_URL}/registry/agents", headers=registry_headers)
-        registry_response.raise_for_status()
-        registered_agents = registry_response.json().get("agents", [])
+            registry_response = requests.get(f"{AGENT_REGISTRY_URL}/registry/agents", headers=registry_headers)
+            registry_response.raise_for_status()
+            registered_agents = registry_response.json().get("agents", [])
 
-        log_audit_event(
-            entity_type="AGENT",
-            entity_id=f"{agent_id}-{agent_task_id}",
-            event_type="AGENT_REGISTRY_QUERY_COMPLETED",
-            description=f"Agent {agent_id} received {len(registered_agents)} agents from Agent Registry.",
-            metadata={"num_registered_agents": len(registered_agents)}
-        )
+            log_audit_event(
+                entity_type="AGENT",
+                entity_id=f"{agent_id}-{agent_task_id}",
+                event_type="AGENT_REGISTRY_QUERY_COMPLETED",
+                description=f"Agent {agent_id} received {len(registered_agents)} agents from Agent Registry.",
+                metadata={"num_registered_agents": len(registered_agents)}
+            )
 
-        # 3. Simulate analysis to match problems with agents/experts
-        # TODO: CQ-CM-002: Replace with actual complex matching logic (LLM interaction, capability matching). The blocking time.sleep() has been removed.
-        problem_statement = raw_problem_data.get("data", [{}])[0].get("problem_description", db_agent_task.task_description)
-        suggested_collaborations = {
-            "research_problem": problem_statement,
-            "suggested_teams": [
-                {
-                    "team_id": "TEAM-001",
-                    "agents": [
-                        {"agent_id": "biomarker_hunter_agent_001", "role": "Biomarker Identification"},
-                        {"agent_id": "pathway_modeler_agent_001", "role": "Disease Pathway Modeling"}
-                    ],
-                    "rationale": "Combines biomarker discovery with pathway analysis for comprehensive understanding."
-                },
-                {
-                    "team_id": "TEAM-002",
-                    "agents": [
-                        {"agent_id": "data_harmonizer_agent_001", "role": "Data Integration"},
-                        {"agent_id": "literature_bridger_agent_001", "role": "Contextual Literature Review"}
-                    ],
-                    "rationale": "Ensures data consistency and enriches findings with relevant scientific context."
-                }
-            ],
-            "external_experts": [
-                {"name": "Dr. Jane Doe", "expertise": "Neurogenetics", "affiliation": "University X"}
-            ],
-            "matchmaking_summary": f"Identified optimal teams based on problem complexity and {len(registered_agents)} available agents."
-        }
+            # 3. Simulate analysis to match problems with agents/experts
+            # TODO: CQ-CM-002: Replace with actual complex matching logic (LLM interaction, capability matching). The blocking time.sleep() has been removed.
+            problem_statement = raw_problem_data.get("data", [{}])[0].get("problem_description", db_agent_task.task_description)
+            suggested_collaborations = {
+                "research_problem": problem_statement,
+                "suggested_teams": [
+                    {
+                        "team_id": "TEAM-001",
+                        "agents": [
+                            {"agent_id": "biomarker_hunter_agent_001", "role": "Biomarker Identification"},
+                            {"agent_id": "pathway_modeler_agent_001", "role": "Disease Pathway Modeling"}
+                        ],
+                        "rationale": "Combines biomarker discovery with pathway analysis for comprehensive understanding."
+                    },
+                    {
+                        "team_id": "TEAM-002",
+                        "agents": [
+                            {"agent_id": "data_harmonizer_agent_001", "role": "Data Integration"},
+                            {"agent_id": "literature_bridger_agent_001", "role": "Contextual Literature Review"}
+                        ],
+                        "rationale": "Ensures data consistency and enriches findings with relevant scientific context."
+                    }
+                ],
+                "external_experts": [
+                    {"name": "Dr. Jane Doe", "expertise": "Neurogenetics", "affiliation": "University X"}
+                ],
+                "matchmaking_summary": f"Identified optimal teams based on problem complexity and {len(registered_agents)} available agents."
+            }
 
-        # 4. Publish collaboration suggestions as an insight
-        insight_name_val = f"Collaboration Suggestion: {db_agent_task.task_description}"
-        insight_publish_request_obj = schemas.InsightPublishRequest(
-            insight_name=insight_name_val,
-            insight_description=f"Automatically identified collaboration opportunities for research problem: {db_agent_task.task_description}.",
-            data_source_ids=[f"adworkbench_query_{adworkbench_query_id}", "agent_registry_scan"],
-            payload=suggested_collaborations,
-            tags=["collaboration_matchmaking", "team_formation", agent_id]
-        )
-        insight_payload = insight_publish_request_obj.model_dump_json()
+            # 4. Publish collaboration suggestions as an insight
+            insight_name_val = f"Collaboration Suggestion: {db_agent_task.task_description}"
+            insight_publish_request_obj = schemas.InsightPublishRequest(
+                insight_name=insight_name_val,
+                insight_description=f"Automatically identified collaboration opportunities for research problem: {db_agent_task.task_description}.",
+                data_source_ids=[f"adworkbench_query_{adworkbench_query_id}", "agent_registry_scan"],
+                payload=suggested_collaborations,
+                tags=["collaboration_matchmaking", "team_formation", agent_id]
+            )
+            insight_payload = insight_publish_request_obj.model_dump_json()
 
-        log_audit_event(
-            entity_type="AGENT",
-            entity_id=f"{agent_id}-{agent_task_id}",
-            event_type="PUBLISHING_COLLABORATION_INSIGHT",
-            description=f"Agent {agent_id} publishing collaboration matchmaking insight.",
-            metadata={"insight_name": insight_name_val}
-        )
+            log_audit_event(
+                entity_type="AGENT",
+                entity_id=f"{agent_id}-{agent_task_id}",
+                event_type="PUBLISHING_COLLABORATION_INSIGHT",
+                description=f"Agent {agent_id} publishing collaboration matchmaking insight.",
+                metadata={"insight_name": insight_name_val}
+            )
 
-        publish_response = requests.post(
-            f"{ADWORKBENCH_PROXY_URL}/adworkbench/publish-insight",
-            headers=adworkbench_headers,
-            data=insight_payload
-        )
-        publish_response.raise_for_status()
-        publish_result = publish_response.json()
+            publish_response = requests.post(
+                f"{ADWORKBENCH_PROXY_URL}/adworkbench/publish-insight",
+                headers=adworkbench_headers,
+                data=insight_payload
+            )
+            publish_response.raise_for_status()
+            publish_result = publish_response.json()
 
-        mock_result = {
-            "status": "success",
-            "agent_output": f"Collaboration matchmaking completed for task {agent_task_id}.",
-            "collaboration_suggestions": suggested_collaborations,
-            "published_insight_id": publish_result.get("insight_id")
-        }
+            mock_result = {
+                "status": "success",
+                "agent_output": f"Collaboration matchmaking completed for task {agent_task_id}.",
+                "collaboration_suggestions": suggested_collaborations,
+                "published_insight_id": publish_result.get("insight_id")
+            }
 
-        crud.update_agent_task_status(db, agent_task_id, "COMPLETED", mock_result)
-        crud.update_agent_state(db, agent_id, current_task_id=None)
-        log_audit_event(
-            entity_type="AGENT",
-            entity_id=f"{agent_id}-{agent_task_id}",
-            event_type="COLLABORATION_MATCHMAKING_COMPLETED",
-            description=f"Agent {agent_id} completed collaboration matchmaking task {agent_task_id} and published insight.",
-            metadata={"task_result": mock_result}
-        )
-        return {"agent_task_id": agent_task_id, "status": "COMPLETED", "result": mock_result}
-    except requests.exceptions.RequestException as e:
-        error_message = f"AD Workbench Proxy or Agent Registry API call failed: {e}"
-        crud.update_agent_task_status(db, agent_task_id, "FAILED", {"error": error_message})
-        crud.update_agent_state(db, agent_id, current_task_id=None)
-        log_audit_event(
-            entity_type="AGENT",
-            entity_id=f"{agent_id}-{agent_task_id}",
-            event_type="COLLABORATION_MATCHMAKING_FAILED",
-            description=f"Agent {agent_id} failed to match collaborations for task {agent_task_id}: {error_message}",
-            metadata={"error": error_message}
-        )
-        self.update_state(state='FAILURE', meta={'exc_type': type(e).__name__, 'exc_message': error_message})
-        raise
-    except Exception as e:
-        error_message = str(e)
-        crud.update_agent_task_status(db, agent_task_id, "FAILED", {"error": error_message})
-        crud.update_agent_state(db, agent_id, current_task_id=None)
-        log_audit_event(
-            entity_type="AGENT",
-            entity_id=f"{agent_id}-{agent_task_id}",
-            event_type="COLLABORATION_MATCHMAKING_FAILED",
-            description=f"Agent {agent_id} failed to match collaborations for task {agent_task_id}: {error_message}",
-            metadata={"error": error_message}
-        )
-        self.update_state(state='FAILURE', meta={'exc_type': type(e).__name__, 'exc_message': error_message})
-        raise
-    finally:
-        db.close()
+            crud.update_agent_task_status(db, agent_task_id, "COMPLETED", mock_result)
+            crud.update_agent_state(db, agent_id, current_task_id=None)
+            log_audit_event(
+                entity_type="AGENT",
+                entity_id=f"{agent_id}-{agent_task_id}",
+                event_type="COLLABORATION_MATCHMAKING_COMPLETED",
+                description=f"Agent {agent_id} completed collaboration matchmaking task {agent_task_id} and published insight.",
+                metadata={"task_result": mock_result}
+            )
+            return {"agent_task_id": agent_task_id, "status": "COMPLETED", "result": mock_result}
+        except requests.exceptions.RequestException as e:
+            error_message = f"AD Workbench Proxy or Agent Registry API call failed: {e}"
+            crud.update_agent_task_status(db, agent_task_id, "FAILED", {"error": error_message})
+            crud.update_agent_state(db, agent_id, current_task_id=None)
+            log_audit_event(
+                entity_type="AGENT",
+                entity_id=f"{agent_id}-{agent_task_id}",
+                event_type="COLLABORATION_MATCHMAKING_FAILED",
+                description=f"Agent {agent_id} failed to match collaborations for task {agent_task_id}: {error_message}",
+                metadata={"error": error_message}
+            )
+            self.update_state(state='FAILURE', meta={'exc_type': type(e).__name__, 'exc_message': error_message})
+            raise
+        except Exception as e:
+            error_message = str(e)
+            crud.update_agent_task_status(db, agent_task_id, "FAILED", {"error": error_message})
+            crud.update_agent_state(db, agent_id, current_task_id=None)
+            log_audit_event(
+                entity_type="AGENT",
+                entity_id=f"{agent_id}-{agent_task_id}",
+                event_type="COLLABORATION_MATCHMAKING_FAILED",
+                description=f"Agent {agent_id} failed to match collaborations for task {agent_task_id}: {error_message}",
+                metadata={"error": error_message}
+            )
+            self.update_state(state='FAILURE', meta={'exc_type': type(e).__name__, 'exc_message': error_message})
+            raise
         except Exception as e:
             attempt += 1
             if attempt <= max_retries:
@@ -262,6 +259,8 @@ def match_collaboration_task(self, agent_task_id: int):
             else:
                 logger.error(f"Task {agent_task_id} failed after {max_retries} attempts: {str(e)}")
                 raise
+        finally:
+            db.close()
 
 @celery_app.task(bind=True, name="perform_reflection_task")
 def perform_reflection_task(self, agent_id: str, reflection_metadata: dict):

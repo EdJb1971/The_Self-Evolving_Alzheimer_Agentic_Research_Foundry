@@ -3,6 +3,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 import os
 import logging
+from typing import Generator
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 # Base class for models
 Base = declarative_base()
 
-def get_db() -> Session:
+def get_db() -> Generator[Session, None, None]:
     """Dependency to get database session"""
     db = SessionLocal()
     try:

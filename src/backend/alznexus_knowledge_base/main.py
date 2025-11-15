@@ -8,7 +8,7 @@ from datetime import datetime
 
 from .database import get_db, create_tables
 from . import crud, models, schemas
-from .vector_db import get_vector_db_manager, IntelligentContextRetriever, get_rate_limiter, IntelligentTextChunker
+from .vector_db import get_vector_db_manager, IntelligentContextRetriever, get_rate_limiter, IntelligentTextChunker, get_intelligent_retriever
 from .celery_app import celery_app
 
 # Configure logging

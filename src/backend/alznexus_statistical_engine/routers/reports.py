@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 import json
+import numpy as np
 from datetime import datetime, timedelta
 
 from ..database import get_db

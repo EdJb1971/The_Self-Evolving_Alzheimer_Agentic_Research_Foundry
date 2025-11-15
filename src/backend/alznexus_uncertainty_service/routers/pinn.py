@@ -4,15 +4,17 @@ from typing import List, Dict, Any, Optional
 import numpy as np
 import deepxde as dde
 import torch
+from datetime import datetime
 from ..database import get_db
 from ..models import UncertaintyAnalysis, PINNModel
 from ..schemas import (
     PINNModelingRequest,
     PINNModelingResponse,
     PINNTrainRequest,
-    PINNTrainResponse
+    PINNTrainResponse,
+    PINNEvolutionRequest
 )
-from ..tasks import perform_pinn_modeling_task
+from ..tasks import perform_pinn_modeling_task, perform_pinn_evolution_task
 import logging
 
 logger = logging.getLogger(__name__)
@@ -132,7 +134,7 @@ async def train_pinn_model(
 
         # Start async PINN training
         background_tasks.add_task(
-            perform_pinn_training_task,
+            perform_pinn_modeling_task,
             model_id=model_id,
             neural_network_config=request.neural_network_config,
             physics_constraints=request.physics_constraints,

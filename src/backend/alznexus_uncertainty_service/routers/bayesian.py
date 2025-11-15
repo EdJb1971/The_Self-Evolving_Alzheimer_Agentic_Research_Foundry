@@ -12,7 +12,7 @@ from ..schemas import (
     BayesianModelTrainRequest,
     BayesianModelTrainResponse
 )
-from ..tasks import perform_bayesian_uncertainty_task
+from ..tasks import perform_bayesian_uncertainty_task, perform_bayesian_training_task
 import logging
 
 logger = logging.getLogger(__name__)
