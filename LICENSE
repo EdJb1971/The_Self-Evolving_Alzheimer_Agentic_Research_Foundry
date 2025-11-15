@@ -48,8 +48,8 @@ a publicly accessible server, gives the public access to the source
 code of the modified version.
 
   An older license, called the Affero General Public License and
-published by Affero, was designed to accomplish similar goals.  This
-is a different license, not a version of the Affero GPL, but Affero has
+published by Affero, was designed to accomplish similar goals.  This is
+a different license, not a version of the Affero GPL, but Affero has
 released a new version of the Affero GPL which permits relicensing under
 this license.
 
@@ -151,14 +151,14 @@ rights of fair use or other equivalent, as provided by copyright law.
 
   You may make, run and propagate covered works that you do not
 convey, without conditions so long as your license otherwise remains
-in effect.  You may convey covered works to others for the sole purpose
+in force.  You may convey covered works to others for the sole purpose
 of having them make modifications exclusively for you, or provide you
 with facilities for running those works, provided that you comply with
 the terms of this License in conveying all material for which you do
-not control copyright.  Those thus making or running the works for you
-must do so exclusively on your behalf, under your direction and control,
-on terms that prohibit them from making any copies of your copyrighted
-material outside their relationship with you.
+not control copyright.  Those thus making or running the covered works
+for you must do so exclusively on your behalf, under your direction
+and control, on terms that prohibit them from making any copies of
+your copyrighted material outside their relationship with you.
 
   Conveying under any other circumstances is permitted solely under
 the conditions stated below.  Sublicensing is not allowed; section 10
@@ -197,8 +197,7 @@ and you may offer support or warranty protection for a fee.
 
   You may convey a work based on the Program, or the modifications to
 produce it from the Program, in the form of source code under the
-terms of section 4, above, provided that you also meet all of these
-conditions:
+terms of section 4, provided that you also meet all of these conditions:
 
     a) The work must carry prominent notices stating that you modified
     it, and giving a relevant date.
@@ -210,11 +209,11 @@ conditions:
 
     c) You must license the entire work, as a whole, under this
     License to anyone who comes into possession of a copy.  This
-    License will therefore apply, in its entirety, to the whole of the
-    work, and all its parts, regardless of how they are packaged.  This
-    License gives no permission to license the work in any other way,
-    but it does not invalidate such permission if you have separately
-    received it.
+    License will therefore apply, along with any applicable section 7
+    additional terms, to the whole of the work, and all its parts,
+    regardless of how they are packaged.  This License gives no
+    permission to license the work in any other way, but it does not
+    invalidate such permission if you have separately received it.
 
     d) If the work has interactive user interfaces, each must display
     Appropriate Legal Notices; however, if the Program has interactive
@@ -276,7 +275,8 @@ in one of these ways:
 
     e) Convey the object code using peer-to-peer transmission, provided
     you inform other peers where the object code and Corresponding
-    Source of the work are being offered to the public at large.
+    Source of the work are being offered to the general public at no
+    charge under subsection 6d.
 
   A separable portion of the object code, whose source code is excluded
 from the Corresponding Source as a System Library, need not be
@@ -308,10 +308,10 @@ specifically for use in, a User Product, and the conveying occurs as
 part of a transaction in which the right of possession and use of the
 User Product is transferred to the recipient in perpetuity or for a
 fixed term (regardless of how the transaction is characterized), the
-Corresponding Source conveyed under subsection 6d must be accompanied
-by Installation Information.  But this requirement does not apply
+Corresponding Source conveyed under this section must be accompanied
+by the Installation Information.  But this requirement does not apply
 if neither you nor any third party retains the ability to install
-modified object codes on the User Product (for example, the work has
+modified object code on the User Product (for example, the work has
 been installed in ROM).
 
   The requirement to provide Installation Information does not include a
@@ -433,7 +433,7 @@ covered work, you indicate your acceptance of this License to do so.
 
   10. Automatic Licensing of Downstream Recipients.
 
-  Each time you convey a copy of a covered work, the recipient automatically
+  Each time you convey a covered work, the recipient automatically
 receives a license from the original licensors, to run, modify and
 propagate that work, subject to this License.  You are not responsible
 for enforcing compliance by third parties with this License.
@@ -464,13 +464,13 @@ work thus licensed is called the contributor's "contributor version".
 
   A contributor's "essential patent claims" are all patent claims
 owned or controlled by the contributor, whether already acquired or
-hereafter acquired, that would be infringed by some manner, in which
-the contributor contributes, of making, using, or selling its
-contributor version, but do not include claims that would be infringed
-only as a consequence of further modification of the contributor
-version.  For purposes of this definition, "control" includes the right
-to grant patent sublicenses in a manner consistent with the requirements
-of this License.
+hereafter acquired, that would be infringed by some manner, permitted
+by this License, of making, using, or selling its contributor version,
+but do not include claims that would be infringed only as a
+consequence of further modification of the contributor version.  For
+purposes of this definition, "control" includes the right to grant
+patent sublicenses in a manner consistent with the requirements of
+this License.
 
   Each contributor grants you a non-exclusive, worldwide, royalty-free
 patent license under the contributor's essential patent claims, to
@@ -481,8 +481,8 @@ propagate the contents of its contributor version.
 agreement or commitment, however denominated, not to enforce a patent
 (such as an express permission to practice a patent or covenant not to
 sue for patent infringement).  To "grant" such a patent license to a
-party means to make such an express agreement or commitment not to
-enforce a patent against the party.
+party means to make such an agreement or commitment not to enforce a
+patent against the party.
 
   If you convey a covered work, knowingly relying on a patent license,
 and the Corresponding Source of the work is not available for anyone
@@ -511,16 +511,19 @@ the scope of its coverage, prohibits the exercise of, or is
 conditioned on the non-exercise of one or more of the rights that are
 specifically granted under this License.  You may not convey a covered
 work if you are a party to an arrangement with a third party that is
-in the patent business, where the third party conditions your exercise
-of the rights granted under this License to any covered work on your
-not granting also to any other recipients of the covered work a patent
-license (a) in the same scope as the patent license you have been
-granted, or (b) containing terms of use that are different from the
-terms of this License.
+in the business of distributing software, under which you make payment
+to the third party based on the extent of your activity of conveying
+the work, and under which the third party grants, to any of the
+parties who would receive the covered work from you, a discriminatory
+patent license (a) in connection with copies of the covered work
+conveyed by you (or copies made from those copies), or (b) primarily
+for and in connection with specific products or compilations that
+contain the covered work, unless you entered into that arrangement,
+or that patent license was granted, prior to 28 March 2007.
 
-  If you convey a covered work and provide a patent license for the
-work, you must ensure that the patent license is non-discriminatory
-and available to all recipients under the same terms and conditions.
+  Nothing in this License shall be construed as excluding or limiting
+any implied license or other defenses to infringement that may
+otherwise be available to you under applicable patent law.
 
   12. No Surrender of Others' Freedom.
 
@@ -531,8 +534,8 @@ covered work so as to satisfy simultaneously your obligations under this
 License and any other pertinent obligations, then as a consequence you may
 not convey it at all.  For example, if you agree to terms that obligate you
 to collect a royalty for further conveying from those to whom you convey
-the Program, the only way you would be obliged to refrain from conveying
-the Program.
+the Program, the only way you could satisfy both those terms and this
+License would be to refrain entirely from conveying the Program.
 
   13. Remote Network Interaction; Use with the GNU General Public License.
 
@@ -588,9 +591,9 @@ APPLICABLE LAW.  EXCEPT WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT
 HOLDERS AND/OR OTHER PARTIES PROVIDE THE PROGRAM "AS IS" WITHOUT WARRANTY
 OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO,
 THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE.  THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE
-PROGRAM IS WITH YOU.  SHOULD THE PROGRAM PROVE DEFECTIVE, YOU ASSUME
-THE COST OF ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
+PURPOSE.  THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE PROGRAM
+IS WITH YOU.  SHOULD THE PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF
+ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
 
   16. Limitation of Liability.
 
@@ -610,14 +613,14 @@ SUCH DAMAGES.
 above cannot be given local legal effect according to their terms,
 reviewing courts shall apply local law that most closely approximates
 an absolute waiver of all civil liability in connection with the
-Program, except for cases of willful misconduct by the copyright
-holder or other party.
+Program, unless a warranty or assumption of liability accompanies a
+copy of the Program in return for a fee.
 
                      END OF TERMS AND CONDITIONS
 
             How to Apply These Terms to Your New Programs
 
-  If you develop a program, and you want it to be of the greatest
+  If you develop a new program, and you want it to be of the greatest
 possible use to the public, the best way to achieve this is to make it
 free software which everyone can redistribute and change under these terms.
 
@@ -644,39 +647,15 @@ the "copyright" line and a pointer to where the full notice is found.
 
 Also add information on how to contact you by electronic and paper mail.
 
-  If the program does terminal interaction, make it output a short
-notice like this when it starts in an interactive mode:
-
-    <program>  Copyright (C) <year>  <name of author>
-    This program comes with ABSOLUTELY NO WARRANTY; for details type `show w'.
-    This is free software, and you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as published
-    by the Free Software Foundation; either version 3 of the License, or
-    (at your option) any later version.
-
-    <program> is distributed in the hope that it will be useful, but
-    WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-    Affero General Public License for more details.
-
-    You should have received a copy of the GNU Affero General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
-Use the AGPL for programs whose distribution is over a network, so that
-it requires people who use modified versions to make their own modified
-versions available to the users over the network.
-
-Also add information on how to contact you by electronic and paper mail.
-
   If your software can interact with users remotely through a computer
 network, you should also make sure that it provides a way for users to
 get its source.  For example, if your program is a web application, its
 interface could display a "Source" link that leads users to an archive
-of the code.  There are many ways you can offer source, and different
+of the code.  There are many ways you could offer source, and different
 solutions will be better for different programs; see section 13 for the
 specific requirements.
 
-    You should also get your employer (if you work as a programmer) or school,
+  You should also get your employer (if you work as a programmer) or school,
 if any, to sign a "copyright disclaimer" for the program, if necessary.
 For more information on this, and how to apply and follow the GNU AGPL, see
 <https://www.gnu.org/licenses/>.
