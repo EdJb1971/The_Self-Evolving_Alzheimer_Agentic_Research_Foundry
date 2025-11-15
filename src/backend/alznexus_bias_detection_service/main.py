@@ -84,7 +84,7 @@ async def detect_bias(
         detected_bias=False
     )
 
-@app.get("/bias/report/{report_id}", response_model=schemas.BiasDetectionReport, status_code=200,
+@app.get("/bias/report/{report_id}", response_model=schemas.BiasDetectionReport,
          dependencies=[Depends(RateLimiter(times=10, seconds=60))])
 async def get_bias_report(
     report_id: int,
@@ -96,3 +96,8 @@ async def get_bias_report(
     if db_report is None:
         raise HTTPException(status_code=404, detail="Bias report not found")
     return db_report
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring."""
+    return {"status": "healthy", "service": "alznexus_bias_detection_service"}

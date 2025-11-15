@@ -79,3 +79,8 @@ async def get_agent_details(
     if agent is None:
         raise HTTPException(status_code=404, detail="Agent not found")
     return agent
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring."""
+    return {"status": "healthy", "service": "alznexus_agent_registry"}

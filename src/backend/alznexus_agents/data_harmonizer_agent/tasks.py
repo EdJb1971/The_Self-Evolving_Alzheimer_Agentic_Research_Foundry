@@ -11,11 +11,15 @@ AUDIT_TRAIL_URL = os.getenv("AUDIT_TRAIL_URL")
 AUDIT_API_KEY = os.getenv("AUDIT_API_KEY")
 ADWORKBENCH_PROXY_URL = os.getenv("ADWORKBENCH_PROXY_URL")
 ADWORKBENCH_API_KEY = os.getenv("ADWORKBENCH_API_KEY")
+LLM_SERVICE_URL = os.getenv("LLM_SERVICE_URL")
+LLM_API_KEY = os.getenv("LLM_API_KEY")
 
 if not AUDIT_TRAIL_URL or not AUDIT_API_KEY:
     raise ValueError("AUDIT_TRAIL_URL or AUDIT_API_KEY environment variables not set.")
 if not ADWORKBENCH_PROXY_URL or not ADWORKBENCH_API_KEY:
     raise ValueError("ADWORKBENCH_PROXY_URL or ADWORKBENCH_API_KEY environment variables not set.")
+if not LLM_SERVICE_URL or not LLM_API_KEY:
+    raise ValueError("LLM_SERVICE_URL or LLM_API_KEY environment variables not set.")
 
 def log_audit_event(entity_type: str, entity_id: str, event_type: str, description: str, metadata: dict = None):
     headers = {"X-API-Key": AUDIT_API_KEY, "Content-Type": "application/json"}
@@ -33,7 +37,7 @@ def log_audit_event(entity_type: str, entity_id: str, event_type: str, descripti
     except requests.exceptions.RequestException as e:
         print(f"Failed to log audit event: {e}")
 
-@celery_app.task(bind=True, name="harmonize_data_task")
+@celery_app.task(bind=True, autoretry_for=(Exception,), retry_kwargs={'max_retries': 3, 'countdown': 60})
 def harmonize_data_task(self, agent_task_id: int):
     db: Session = SessionLocal()
     try:
@@ -77,19 +81,30 @@ def harmonize_data_task(self, agent_task_id: int):
             metadata={"datasets_found": datasets_found}
         )
 
-        # Simulate schema analysis and harmonization
-        time.sleep(7) # Simulate complex harmonization work
-
+        # Perform schema harmonization using LLM
+        harmonization_prompt = f"Harmonize the schemas from these datasets: {datasets_found}. Create a unified schema."
+        llm_payload = {
+            "model_name": "gemini-1.5-flash",
+            "prompt": harmonization_prompt,
+            "metadata": {"agent_task_id": agent_task_id}
+        }
+        llm_headers = {"X-API-Key": LLM_API_KEY, "Content-Type": "application/json"}
+        
+        llm_response = requests.post(
+            f"{LLM_SERVICE_URL}/llm/chat",
+            headers=llm_headers,
+            json=llm_payload
+        )
+        llm_response.raise_for_status()
+        llm_result = llm_response.json()
+        harmonization_text = llm_result["response_text"]
+        
         harmonized_schema = {
             "schema_name": f"Harmonized_Schema_for_{db_agent_task.task_description.replace(' ', '_')}",
             "version": "1.0",
-            "fields": [
-                {"name": "patient_id", "type": "string", "description": "Unique patient identifier"},
-                {"name": "age_at_diagnosis", "type": "integer", "unit": "years"},
-                {"name": "biomarker_A_level", "type": "float", "unit": "ng/mL"}
-            ],
+            "llm_harmonization": harmonization_text,
             "source_datasets": datasets_found,
-            "harmonization_report": f"Successfully aligned schemas from {len(datasets_found)} datasets."
+            "harmonization_report": "LLM-generated harmonized schema."
         }
 
         # Publish harmonized schema as an insight

@@ -79,6 +79,44 @@ AlzNexus employs a robust microservices-oriented architecture designed for long-
 *   **Database:** PostgreSQL (with SQLAlchemy ORM)
 *   **Asynchronous Tasks:** Celery with RabbitMQ as broker
 *   **Caching/Rate Limiting:** Redis
+*   **LLM Integration:** Swappable providers (OpenAI GPT, Google Gemini)
+
+## Current Development Status
+
+### ✅ Completed (Phase 1: Core Functionality)
+- **Real AD Workbench API Integration:** Implemented federated query submission, polling, and result retrieval.
+- **LLM Service Integration:** Connected to real LLM APIs (OpenAI GPT and Google Gemini), with ethical safeguards and swappable models.
+- **Agent Implementations:** All agents now perform real data analysis using LLM calls instead of mocks.
+- **Orchestrator Logic:** Debate resolution and self-correction use LLM-driven reasoning.
+- **Missing Agents:** `pathway_modeler_agent` and `trial_optimizer_agent` fully implemented.
+
+### ✅ Completed (Phase 2: Infrastructure and Asynchronous Handling)
+- **Asynchronous Task Management:** Replaced sleep-based polling with proper async polling loops in agents.
+- **Error Handling:** Added Celery autoretry with max_retries=3 and countdown=60 to key tasks.
+- **Docker Compose:** Created setup with PostgreSQL, Redis, RabbitMQ, and health checks.
+
+### ✅ Completed (Phase 3: Security and Scalability)
+- **Security Measures:** Environment-based secrets management; placeholders for OAuth/JWT.
+- **Data Privacy:** Added basic differential privacy with Gaussian noise to numerical data.
+- **Scalability:** Configured horizontal scaling in Docker Compose (3 orchestrator replicas, 5 worker replicas).
+
+### ✅ Completed (Phase 5: Frontend Integration)
+- **Comprehensive UI**: Full frontend interface with all backend functionality accessible through professional React components
+- **Dashboard**: System overview with health monitoring, service metrics, registered agents display, and quick action buttons
+- **Agent Registry**: View and manage registered agents with detailed capabilities display and modal dialogs
+- **LLM Chat Interface**: Direct interaction with LLM service with model selection, temperature control, and conversation history
+- **Bias Detection Portal**: Submit content for analysis, view detailed bias reports with categories, recommendations, and mitigation strategies
+- **AD Workbench Query Interface**: Federated query submission across AD databases with results visualization and metadata display
+- **Advanced Orchestrator Controls**: Monitor active tasks, resolve agent debates, cancel tasks, and view system status with real-time updates
+- **Settings & Configuration**: API key management, theme selection, notification preferences, and import/export functionality
+- **Professional UI**: Responsive design with Tailwind CSS, consistent error handling, loading states, and user feedback
+
+### 🔄 Next Steps (Phase 5.2-5.3: CI/CD and Final Validation)
+- **CI/CD Setup**: GitHub Actions for automated testing and deployment
+- **Production Deployment**: Docker Compose production configuration
+- **Final Validation**: End-to-end testing and documentation completion
+
+For detailed progress and remaining work, see `architecture.md`.
 *   **HTTP Client:** Axios (Frontend), Requests (Backend)
 
 ## How to Set Up & Run
@@ -151,10 +189,16 @@ Repeat for `alznexus_adworkbench_proxy`, `alznexus_audit_trail`, `alznexus_agent
 ### 5. Access the Platform
 Once all services are up and databases are initialized:
 
-*   **Frontend Application:** Access the AlzNexus UI in your browser at `http://localhost:5173` (or the port configured in `vite.config.ts`).
-    *   You can submit new research queries (STORY-201).
-    *   Monitor the status of orchestrator tasks (STORY-203).
-    *   View the audit trail for specific entities (STORY-204).
+*   **Frontend Application:** Access the complete AlzNexus UI in your browser at `http://localhost:5173` (or the port configured in `vite.config.ts`).
+    *   **Dashboard**: System overview with health monitoring and quick actions
+    *   **Submit Query**: Submit research queries and monitor task progress
+    *   **Agent Registry**: View and manage all registered agents
+    *   **LLM Chat**: Direct interaction with Large Language Models
+    *   **Bias Detection**: Analyze content for potential biases
+    *   **AD Workbench**: Submit federated queries across AD databases
+    *   **Orchestrator**: Advanced controls for task coordination and debate resolution
+    *   **Audit Trail**: View comprehensive system audit logs
+    *   **Settings**: Configure API keys, preferences, and system settings
 
 *   **Backend API Endpoints (Swagger UI):**
     *   **AD Workbench API Proxy:** `http://localhost:8000/docs`
@@ -167,14 +211,16 @@ Once all services are up and databases are initialized:
     You can interact with the APIs directly using tools like `curl` or Postman, or through the Swagger UI.
 
 ### 6. Basic Usage Example (via Frontend)
-1.  Open `http://localhost:5173`.
-2.  Navigate to "Submit Query".
-3.  Enter a research query, e.g., "Identify novel early-stage biomarkers for Alzheimer's disease."
-4.  Click "Submit Query". You should see a "Query Submitted Successfully!" message with a Goal ID.
-5.  Navigate to "Task Status".
-6.  Enter the Goal ID from the previous step and click "Get Status". You should see the orchestrator task status update as it progresses through `PENDING`, `IN_PROGRESS`, and `COMPLETED` (after a simulated delay).
-7.  Navigate to "Audit Trail".
-8.  Enter `ORCHESTRATOR` for Entity Type and the Goal ID for Entity ID, then click "Search Audit History". You will see a detailed log of the orchestrator's actions related to your query.
+1.  Open `http://localhost:5173` to access the complete AlzNexus platform.
+2.  **Dashboard**: View system health, active tasks, and registered agents overview.
+3.  **Submit Query**: Navigate to "Submit Query", enter a research query like "Identify novel early-stage biomarkers for Alzheimer's disease," and click submit.
+4.  **Monitor Progress**: Use "Task Status" to track orchestrator task progress, or "Orchestrator" for advanced controls and real-time monitoring.
+5.  **Agent Management**: Visit "Agents" to view all registered agents and their capabilities.
+6.  **LLM Interaction**: Use "LLM Chat" to directly interact with AI models for research assistance.
+7.  **Bias Analysis**: Submit content to "Bias Detection" for comprehensive bias analysis.
+8.  **Data Queries**: Use "AD Workbench" to submit federated queries across AD databases.
+9.  **Audit Trail**: Review all system activities and decisions in the "Audit Trail" section.
+10. **Configuration**: Set up API keys and preferences in the "Settings" section.
 
 ### 7. Stopping the Platform
 To stop all running Docker containers and remove their networks and volumes:

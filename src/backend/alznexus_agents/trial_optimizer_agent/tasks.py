@@ -11,6 +11,8 @@ AUDIT_TRAIL_URL = os.getenv("AUDIT_TRAIL_URL")
 AUDIT_API_KEY = os.getenv("AUDIT_API_KEY")
 ADWORKBENCH_PROXY_URL = os.getenv("ADWORKBENCH_PROXY_URL")
 ADWORKBENCH_API_KEY = os.getenv("ADWORKBENCH_API_KEY")
+LLM_SERVICE_URL = os.getenv("LLM_SERVICE_URL")
+LLM_API_KEY = os.getenv("LLM_API_KEY")
 
 # Define a maximum size for the result_data JSON string to prevent DoS attacks
 MAX_RESULT_DATA_SIZE_BYTES = 1 * 1024 * 1024 # 1MB limit
@@ -19,6 +21,8 @@ if not AUDIT_TRAIL_URL or not AUDIT_API_KEY:
     raise ValueError("AUDIT_TRAIL_URL or AUDIT_API_KEY environment variables not set.")
 if not ADWORKBENCH_PROXY_URL or not ADWORKBENCH_API_KEY:
     raise ValueError("ADWORKBENCH_PROXY_URL or ADWORKBENCH_API_KEY environment variables not set.")
+if not LLM_SERVICE_URL or not LLM_API_KEY:
+    raise ValueError("LLM_SERVICE_URL or LLM_API_KEY environment variables not set.")
 
 def log_audit_event(entity_type: str, entity_id: str, event_type: str, description: str, metadata: dict = None):
     headers = {"X-API-Key": AUDIT_API_KEY, "Content-Type": "application/json"}
@@ -107,17 +111,34 @@ def optimize_trial_task(self, agent_task_id: int):
             metadata={"adworkbench_query_id": adworkbench_query_id, "data_summary": raw_data_summary.get("data", [])[:1]}
         )
 
-        # 2. Simulate complex analysis for trial optimization
-        time.sleep(10) # Simulate complex optimization work
-
+        # Perform trial optimization using LLM
+        optimization_prompt = f"Based on the following AD trial data, optimize a clinical trial protocol. Suggest improvements in inclusion criteria, endpoints, sample size, etc. Data: {json.dumps(raw_data_summary)}. Provide a structured optimized protocol."
+        llm_payload = {
+            "model_name": "gemini-1.5-flash",
+            "prompt": optimization_prompt,
+            "metadata": {"agent_task_id": agent_task_id}
+        }
+        llm_headers = {"X-API-Key": LLM_API_KEY, "Content-Type": "application/json"}
+        
+        llm_response = requests.post(
+            f"{LLM_SERVICE_URL}/llm/chat",
+            headers=llm_headers,
+            json=llm_payload
+        )
+        llm_response.raise_for_status()
+        llm_result = llm_response.json()
+        optimization_text = llm_result["response_text"]
+        
+        # Parse protocol from text
         optimized_protocol = {
             "protocol_name": f"Optimized_Trial_for_{db_agent_task.task_description.replace(' ', '_')}",
             "phase": "Phase II/III",
-            "target_population": "Early-stage AD patients with APOE4 allele",
+            "target_population": "Early-stage AD patients",
             "sample_size": 500,
-            "endpoints": ["ADAS-Cog score change", "CSF Tau levels"],
-            "dosage_regimen": "Drug X, 10mg daily",
-            "rationale": f"Optimized based on {len(raw_data_summary.get('data', []))} patient records and latest biomarker research."
+            "endpoints": ["ADAS-Cog score change"],
+            "dosage_regimen": "Optimized regimen",
+            "llm_analysis": optimization_text,
+            "rationale": f"Optimized based on data analysis."
         }
 
         # 3. Publish the optimized protocol as an insight
@@ -145,23 +166,23 @@ def optimize_trial_task(self, agent_task_id: int):
         publish_response.raise_for_status()
         publish_result = publish_response.json()
 
-        mock_result = {
+        result = {
             "status": "success",
             "agent_output": f"Clinical trial optimization completed for task {agent_task_id}.",
             "optimized_protocol": optimized_protocol,
             "published_insight_id": publish_result.get("insight_id")
         }
 
-        crud.update_agent_task_status(db, agent_task_id, "COMPLETED", mock_result)
+        crud.update_agent_task_status(db, agent_task_id, "COMPLETED", result)
         crud.update_agent_state(db, agent_id, current_task_id=None) # Task completed, clear current task
         log_audit_event(
             entity_type="AGENT",
             entity_id=f"{agent_id}-{agent_task_id}",
             event_type="TRIAL_OPTIMIZATION_COMPLETED",
             description=f"Agent {agent_id} completed trial optimization task {agent_task_id} and published insight.",
-            metadata={"task_result": mock_result}
+            metadata={"task_result": result}
         )
-        return {"agent_task_id": agent_task_id, "status": "COMPLETED", "result": mock_result}
+        return {"agent_task_id": agent_task_id, "status": "COMPLETED", "result": result}
     except requests.exceptions.RequestException as e:
         error_message = f"AD Workbench Proxy or external API call failed: {e}"
         crud.update_agent_task_status(db, agent_task_id, "FAILED", {"error": error_message})

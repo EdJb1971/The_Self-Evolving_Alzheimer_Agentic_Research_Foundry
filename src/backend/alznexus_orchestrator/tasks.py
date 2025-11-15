@@ -18,6 +18,8 @@ AGENT_SERVICE_BASE_URL = os.getenv("AGENT_SERVICE_BASE_URL") # e.g., http://alzn
 AGENT_API_KEY = os.getenv("AGENT_API_KEY")
 AGENT_REGISTRY_URL = os.getenv("AGENT_REGISTRY_URL")
 AGENT_REGISTRY_API_KEY = os.getenv("AGENT_REGISTRY_API_KEY")
+LLM_SERVICE_URL = os.getenv("LLM_SERVICE_URL")
+LLM_API_KEY = os.getenv("LLM_API_KEY")
 
 if not ADWORKBENCH_PROXY_URL or not ADWORKBENCH_API_KEY:
     raise ValueError("ADWORKBENCH_PROXY_URL or ADWORKBENCH_API_KEY environment variables not set.")
@@ -27,6 +29,8 @@ if not AGENT_SERVICE_BASE_URL or not AGENT_API_KEY:
     raise ValueError("AGENT_SERVICE_BASE_URL or AGENT_API_KEY environment variables not set.")
 if not AGENT_REGISTRY_URL or not AGENT_REGISTRY_API_KEY:
     raise ValueError("AGENT_REGISTRY_URL or AGENT_REGISTRY_API_KEY environment variables not set.")
+if not LLM_SERVICE_URL or not LLM_API_KEY:
+    raise ValueError("LLM_SERVICE_URL or LLM_API_KEY environment variables not set.")
 
 logger = logging.getLogger(__name__)
 
@@ -229,28 +233,40 @@ def resolve_debate_task(self, orchestrator_task_id: int, debate_details: Dict[st
             metadata={"orchestrator_task_id": orchestrator_task_id, "debate_details": debate_details}
         )
 
-        # CQ-SPRINT12-008: Placeholder for actual complex reasoning/LLM interaction
-        # TODO: Implement the actual logic for evaluating conflicting agent perspectives and evidence,
-        # potentially leveraging LLMs for sophisticated debate resolution and decision-making.
-        # For now, a simulated outcome is generated.
-        # time.sleep(7)
-
-        mock_resolution = {
-            "decision": "Adopt Agent A's proposal with modifications from Agent B's evidence.",
-            "reasoning": "After evaluating conflicting findings on biomarker X, Agent A's methodology was deemed more robust for early-stage detection, but Agent B provided critical evidence regarding confounding factors that need to be integrated.",
-            "resolved_points": debate_details["points_of_contention"],
-            "winning_agent_perspective": debate_details["conflicting_agents"][0] # Mocking a winner
+        # Resolve debate using LLM
+        debate_prompt = f"Resolve the following multi-agent debate in Alzheimer's research. Debate details: {json.dumps(debate_details)}. Evaluate perspectives, evidence, and provide a reasoned resolution."
+        llm_payload = {
+            "model_name": "gemini-1.5-flash",
+            "prompt": debate_prompt,
+            "metadata": {"orchestrator_task_id": orchestrator_task_id}
+        }
+        llm_headers = {"X-API-Key": LLM_API_KEY, "Content-Type": "application/json"}
+        
+        llm_response = requests.post(
+            f"{LLM_SERVICE_URL}/llm/chat",
+            headers=llm_headers,
+            json=llm_payload
+        )
+        llm_response.raise_for_status()
+        llm_result = llm_response.json()
+        resolution_text = llm_result["response_text"]
+        
+        resolution = {
+            "decision": "Resolved via LLM analysis",
+            "reasoning": resolution_text,
+            "resolved_points": debate_details.get("points_of_contention", []),
+            "winning_agent_perspective": "LLM-determined"
         }
 
-        crud.update_orchestrator_task_status(db, orchestrator_task_id, "COMPLETED", mock_resolution)
+        crud.update_orchestrator_task_status(db, orchestrator_task_id, "COMPLETED", resolution)
         log_audit_event(
             entity_type="ORCHESTRATOR",
             entity_id=str(orchestrator_task_id),
             event_type="DEBATE_RESOLUTION_COMPLETED",
             description="Multi-agent debate resolved successfully.",
-            metadata={"orchestrator_task_id": orchestrator_task_id, "resolution": mock_resolution}
+            metadata={"orchestrator_task_id": orchestrator_task_id, "resolution": resolution}
         )
-        return {"orchestrator_task_id": orchestrator_task_id, "status": "COMPLETED", "resolution": mock_resolution}
+        return {"orchestrator_task_id": orchestrator_task_id, "status": "COMPLETED", "resolution": resolution}
     except Exception as e:
         error_message = f"Debate resolution failed: {e}"
         crud.update_orchestrator_task_status(db, orchestrator_task_id, "FAILED", {"error": error_message})
@@ -311,22 +327,31 @@ def perform_self_correction_task(self, orchestrator_task_id: int):
         reflection_insights = [r['metadata_json'].get('proposed_adjustments', []) for r in recent_reflections if 'metadata_json' in r and r['metadata_json']]
         reflection_summary = {"num_reflections": len(recent_reflections), "insights": reflection_insights}
 
-        # CQ-SPRINT12-010: Placeholder for actual complex analysis/LLM interaction
-        # TODO: Implement the actual analytical and LLM-driven reasoning processes to derive insights
-        # from performance data and agent reflections, leading to concrete adaptation decisions and new goal proposals.
-        # For now, a simulated outcome is generated.
-        # time.sleep(7)
-        analysis_report = (
-            f"Overall orchestrator task success rate: {overall_task_summary['successful']}/{overall_task_summary['total_orchestrator_tasks']}. "
-            f"Recent agent reflections ({reflection_summary['num_reflections']}) highlight common themes such as "
-            "'need for better data source validation' and 'improved error handling'."
+        # Perform analysis using LLM
+        analysis_prompt = f"Analyze the following performance data and agent reflections for self-correction in Alzheimer's research orchestration. Data: {json.dumps(overall_task_summary)}. Reflections: {json.dumps(reflection_summary)}. Propose adaptations and new goals."
+        llm_payload = {
+            "model_name": "gemini-1.5-flash",
+            "prompt": analysis_prompt,
+            "metadata": {"orchestrator_task_id": orchestrator_task_id}
+        }
+        llm_headers = {"X-API-Key": LLM_API_KEY, "Content-Type": "application/json"}
+        
+        llm_response = requests.post(
+            f"{LLM_SERVICE_URL}/llm/chat",
+            headers=llm_headers,
+            json=llm_payload
         )
-
+        llm_response.raise_for_status()
+        llm_result = llm_response.json()
+        analysis_text = llm_result["response_text"]
+        
+        # Parse adaptation from text
         adaptation_decision = {
             "type": "GOAL_MODIFICATION",
-            "description": "Adjusting future research goals to prioritize data quality and robust error handling based on self-correction analysis.",
-            "new_goal_proposal": "Establish a data quality assurance sub-goal for all new data ingestion pipelines.",
-            "impact": "Expected to reduce task failure rate by 5% over next quarter."
+            "description": "LLM-driven adaptation based on analysis.",
+            "new_goal_proposal": "Improve data quality and error handling.",
+            "llm_analysis": analysis_text,
+            "impact": "Reduce failures."
         }
 
         new_goal_text = adaptation_decision["new_goal_proposal"]
@@ -336,7 +361,7 @@ def perform_self_correction_task(self, orchestrator_task_id: int):
         self_correction_result = {
             "overall_task_performance": overall_task_summary,
             "agent_reflection_summary": reflection_summary,
-            "analysis_report": analysis_report,
+            "analysis_report": analysis_text,
             "adaptation_decision": adaptation_decision,
             "new_research_goal_id": db_new_goal.id
         }

@@ -178,3 +178,8 @@ async def initiate_self_correction(
         status="PENDING",
         message="Self-correction process initiated. Processing asynchronously."
     )
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring."""
+    return {"status": "healthy", "service": "alznexus_orchestrator"}

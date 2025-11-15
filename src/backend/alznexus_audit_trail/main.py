@@ -59,3 +59,8 @@ async def get_audit_history(
     if not history:
         raise HTTPException(status_code=404, detail=f"No audit history found for {entity_type}:{entity_id}")
     return schemas.AuditHistoryResponse(entity_type=entity_type, entity_id=entity_id, history=history)
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring."""
+    return {"status": "healthy", "service": "alznexus_audit_trail"}

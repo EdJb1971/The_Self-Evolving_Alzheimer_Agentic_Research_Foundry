@@ -176,3 +176,8 @@ async def reflect_agent(
         metadata=reflection_data.model_dump(exclude_unset=True)
     )
     return {"message": f"Agent {agent_id} reflection initiated. Processing asynchronously."}
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring."""
+    return {"status": "healthy", "service": "pathway_modeler_agent"}

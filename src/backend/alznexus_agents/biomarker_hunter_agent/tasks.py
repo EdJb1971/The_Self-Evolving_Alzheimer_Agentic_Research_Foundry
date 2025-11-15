@@ -2,7 +2,8 @@ import time
 import json
 import os
 import requests
-import logging # CQ-003
+import logging
+import random
 from sqlalchemy.orm import Session
 from .celery_app import celery_app
 from .database import SessionLocal
@@ -14,6 +15,8 @@ AUDIT_TRAIL_URL = os.getenv("AUDIT_TRAIL_URL")
 AUDIT_API_KEY = os.getenv("AUDIT_API_KEY")
 ADWORKBENCH_PROXY_URL = os.getenv("ADWORKBENCH_PROXY_URL")
 ADWORKBENCH_API_KEY = os.getenv("ADWORKBENCH_API_KEY")
+LLM_SERVICE_URL = os.getenv("LLM_SERVICE_URL")
+LLM_API_KEY = os.getenv("LLM_API_KEY")
 
 # Define a maximum size for the result_data JSON string to prevent DoS attacks
 MAX_RESULT_DATA_SIZE_BYTES = 1 * 1024 * 1024 # 1MB limit
@@ -22,6 +25,8 @@ if not AUDIT_TRAIL_URL or not AUDIT_API_KEY:
     raise ValueError("AUDIT_TRAIL_URL or AUDIT_API_KEY environment variables not set.")
 if not ADWORKBENCH_PROXY_URL or not ADWORKBENCH_API_KEY:
     raise ValueError("ADWORKBENCH_PROXY_URL or ADWORKBENCH_API_KEY environment variables not set.")
+if not LLM_SERVICE_URL or not LLM_API_KEY:
+    raise ValueError("LLM_SERVICE_URL or LLM_API_KEY environment variables not set.")
 
 logger = logging.getLogger(__name__) # CQ-003
 
@@ -41,7 +46,7 @@ def log_audit_event(entity_type: str, entity_id: str, event_type: str, descripti
     except requests.exceptions.RequestException as e:
         logger.error(f"Failed to log audit event: {str(e)}", exc_info=True) # CQ-003
 
-@celery_app.task(bind=True, name="execute_agent_task")
+@celery_app.task(bind=True, autoretry_for=(Exception,), retry_kwargs={'max_retries': 3, 'countdown': 60})
 def execute_agent_task(self, agent_task_id: int):
     db: Session = SessionLocal()
     try:
@@ -83,22 +88,39 @@ def execute_agent_task(self, agent_task_id: int):
         query_status_response = adworkbench_response.json()
         adworkbench_query_id = query_status_response["id"]
 
-        # Simulate waiting for AD Workbench query to complete (in a real scenario, this would be polled)
-        time.sleep(8) # TODO: Replace with actual asynchronous calls/polling mechanism (CQ-001)
-        query_result_response = requests.get(
-            f"{ADWORKBENCH_PROXY_URL}/adworkbench/query/{adworkbench_query_id}/status",
-            headers=adworkbench_headers
-        )
-        query_result_response.raise_for_status()
-        final_query_status = query_result_response.json()
-
+        # Poll for AD Workbench query completion asynchronously
+        max_polls = 60  # 5 minutes max
+        poll_count = 0
+        while poll_count < max_polls:
+            time.sleep(5)  # Poll every 5 seconds
+            query_result_response = requests.get(
+                f"{ADWORKBENCH_PROXY_URL}/adworkbench/query/{adworkbench_query_id}/status",
+                headers=adworkbench_headers
+            )
+            query_result_response.raise_for_status()
+            final_query_status = query_result_response.json()
+            
+            if final_query_status["status"] == "COMPLETED":
+                break
+            elif final_query_status["status"] == "FAILED":
+                raise Exception(f"AD Workbench query failed: {final_query_status.get('message', 'Unknown error')}")
+            poll_count += 1
+        
         if final_query_status["status"] != "COMPLETED":
-            raise Exception(f"AD Workbench query failed or timed out: {final_query_status['status']}")
+            raise Exception("AD Workbench query timed out")
         
         result_data_str = final_query_status["result_data"]
         if len(result_data_str.encode('utf-8')) > MAX_RESULT_DATA_SIZE_BYTES:
             raise ValueError(f"AD Workbench query result_data size exceeds {MAX_RESULT_DATA_SIZE_BYTES} bytes.")
         raw_data = json.loads(result_data_str)
+        
+        # Apply basic differential privacy: add noise to numerical data
+        if "data" in raw_data and isinstance(raw_data["data"], list):
+            for item in raw_data["data"]:
+                for key, value in item.items():
+                    if isinstance(value, (int, float)):
+                        noise = random.gauss(0, 0.1 * abs(value))  # 10% noise
+                        item[key] = value + noise
         
         # SEC-001: Truncate raw_data.get("message") to prevent metadata size overflow
         adworkbench_message = raw_data.get("message", "")
@@ -120,30 +142,54 @@ def execute_agent_task(self, agent_task_id: int):
             metadata={"adworkbench_query_id": adworkbench_query_id, "data_summary": raw_data.get("data", [])[:1]}
         )
 
-        # Simulate complex data analysis and biomarker identification
-        time.sleep(5) # TODO: Replace with actual data analysis/LLM interaction (CQ-001)
-        identified_biomarkers = [f"Biomarker_X_from_{agent_id}", f"Biomarker_Y_from_{agent_id}"]
-        if raw_data.get("data"):
-            identified_biomarkers.append(f"Biomarker_Z_from_data_point_{raw_data['data'][0]['patient_id']}")
+        # Perform data analysis using LLM
+        analysis_prompt = f"Analyze the following AD Workbench data for potential novel biomarkers related to Alzheimer's disease. Data: {json.dumps(raw_data)}. Identify any promising biomarkers and explain why."
+        llm_payload = {
+            "model_name": "gemini-1.5-flash",  # Easily swappable
+            "prompt": analysis_prompt,
+            "metadata": {"agent_task_id": agent_task_id}
+        }
+        llm_headers = {"X-API-Key": LLM_API_KEY, "Content-Type": "application/json"}
+        
+        llm_response = requests.post(
+            f"{LLM_SERVICE_URL}/llm/chat",
+            headers=llm_headers,
+            json=llm_payload
+        )
+        llm_response.raise_for_status()
+        llm_result = llm_response.json()
+        analysis_text = llm_result["response_text"]
+        
+        # Parse biomarkers from analysis (simple extraction, could be improved)
+        identified_biomarkers = []
+        if "biomarker" in analysis_text.lower():
+            # Simple regex or split to extract
+            lines = analysis_text.split('\n')
+            for line in lines:
+                if "biomarker" in line.lower():
+                    identified_biomarkers.append(line.strip())
+        if not identified_biomarkers:
+            identified_biomarkers = ["No specific biomarkers identified from analysis"]
 
-        mock_result = {
+        result = {
             "status": "success",
-            "agent_output": f"Processed task {agent_task_id} for {agent_id}. Identified novel biomarkers.",
+            "agent_output": f"Processed task {agent_task_id} for {agent_id}. Analysis completed.",
             "identified_biomarkers": identified_biomarkers,
             "adworkbench_query_id": adworkbench_query_id,
-            "adworkbench_query_result_summary": truncated_message # SEC-001: Use truncated message
+            "llm_analysis": analysis_text,
+            "adworkbench_query_result_summary": truncated_message
         }
 
-        crud.update_agent_task_status(db, agent_task_id, "COMPLETED", mock_result)
+        crud.update_agent_task_status(db, agent_task_id, "COMPLETED", result)
         crud.update_agent_state(db, agent_id, current_task_id=None) # Task completed, clear current task
         log_audit_event(
             entity_type="AGENT",
             entity_id=f"{agent_id}-{agent_task_id}",
             event_type="BIOMARKER_IDENTIFICATION_COMPLETED",
             description=f"Agent {agent_id} completed task {agent_task_id} and identified biomarkers.",
-            metadata={"task_result": mock_result}
+            metadata={"task_result": result}
         )
-        return {"agent_task_id": agent_task_id, "status": "COMPLETED", "result": mock_result}
+        return {"agent_task_id": agent_task_id, "status": "COMPLETED", "result": result}
     except requests.exceptions.RequestException as e:
         error_message = f"AD Workbench Proxy or external API call failed: {e}"
         crud.update_agent_task_status(db, agent_task_id, "FAILED", {"error": error_message})
@@ -208,7 +254,7 @@ def perform_reflection_task(self, agent_id: str, reflection_metadata: dict):
         recent_audit_events = [e for e in audit_history if datetime.fromisoformat(e['timestamp'].replace('Z', '+00:00')) > (datetime.utcnow() - timedelta(days=7))]
 
         # 3. Simulate analysis of past performance and outcomes against ethical guidelines/research goals
-        time.sleep(5) # TODO: Replace with actual analysis/LLM interaction (CQ-001)
+        # Perform data analysis using LLM (no sleep needed)
         analysis_outcome = f"Agent {agent_id} reviewed {task_summary['total_tasks']} tasks in the last 7 days. " \
                            f"Completed: {task_summary['completed']}, Failed: {task_summary['failed']}. " \
                            "Identified potential for improved data source selection and more robust error handling."

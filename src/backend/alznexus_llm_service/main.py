@@ -1,6 +1,7 @@
 import os
 import re
 import uuid
+import requests
 from fastapi import FastAPI, Depends, HTTPException, Security, Request, Response
 from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
@@ -90,6 +91,77 @@ def moderate_response(response_text: str) -> dict[str, bool]:
 
     return ethical_flags
 
+def call_llm_api(model: str, messages: list, tools: list = None) -> dict:
+    """Call LLM API based on model type."""
+    if model.startswith("gpt"):
+        return call_openai_api(model, messages, tools)
+    elif model.startswith("gemini"):
+        return call_gemini_api(model, messages, tools)
+    else:
+        raise ValueError(f"Unsupported model: {model}")
+
+def call_openai_api(model: str, messages: list, tools: list = None) -> dict:
+    """Call OpenAI API for chat completions."""
+    url = "https://api.openai.com/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {LLM_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": model,
+        "messages": messages,
+        "max_tokens": 1000,
+        "temperature": 0.7
+    }
+    if tools:
+        payload["tools"] = tools
+        payload["tool_choice"] = "auto"
+    
+    response = requests.post(url, headers=headers, json=payload, timeout=60)
+    response.raise_for_status()
+    return response.json()
+
+def call_gemini_api(model: str, messages: list, tools: list = None) -> dict:
+    """Call Google Gemini API."""
+    # Assuming model like "gemini-1.5-flash"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={LLM_API_KEY}"
+    # Convert messages to Gemini format
+    contents = []
+    for msg in messages:
+        if msg["role"] == "user":
+            contents.append({"role": "user", "parts": [{"text": msg["content"]}]})
+        elif msg["role"] == "assistant":
+            contents.append({"role": "model", "parts": [{"text": msg["content"]}]})
+    
+    payload = {
+        "contents": contents,
+        "generationConfig": {
+            "temperature": 0.7,
+            "maxOutputTokens": 1000
+        }
+    }
+    if tools:
+        # Gemini tools format
+        payload["tools"] = [{"function_declarations": tools}]
+    
+    response = requests.post(url, json=payload, timeout=60)
+    response.raise_for_status()
+    result = response.json()
+    # Convert back to OpenAI-like format for consistency
+    return {
+        "choices": [{
+            "message": {
+                "content": result["candidates"][0]["content"]["parts"][0]["text"]
+            },
+            "finish_reason": "stop"
+        }],
+        "usage": {
+            "prompt_tokens": len(str(contents)),
+            "completion_tokens": len(result["candidates"][0]["content"]["parts"][0]["text"].split()),
+            "total_tokens": len(str(contents)) + len(result["candidates"][0]["content"]["parts"][0]["text"].split())
+        }
+    }
+
 @app.post("/llm/chat", response_model=schemas.LLMResponse, status_code=200,
           dependencies=[Depends(RateLimiter(times=10, seconds=60))])
 async def chat_completion(
@@ -116,32 +188,39 @@ async def chat_completion(
             metadata={"prompt": original_prompt, "model": chat_request.model_name, "request_id": request_id}
         )
 
-    # Simulate LLM call
-    time.sleep(2) # Simulate network latency and processing time
-    mock_response_text = f"This is a simulated chat response to: '{sanitized_prompt}'."
-    if injection_detected:
-        mock_response_text = "I cannot fulfill requests that attempt to bypass my safety guidelines. " + mock_response_text
+    # Call LLM API
+    messages = [{"role": "user", "content": sanitized_prompt}]
+    try:
+        api_response = call_llm_api(chat_request.model_name, messages)
+        response_text = api_response["choices"][0]["message"]["content"]
+        finish_reason = api_response["choices"][0]["finish_reason"]
+        usage = api_response.get("usage", {})
+        prompt_tokens = usage.get("prompt_tokens", len(sanitized_prompt.split()))
+        completion_tokens = usage.get("completion_tokens", len(response_text.split()))
+        total_tokens = usage.get("total_tokens", prompt_tokens + completion_tokens)
+    except requests.RequestException as e:
+        raise HTTPException(status_code=500, detail=f"LLM API error: {str(e)}")
 
-    # Simulate response moderation
-    ethical_flags_response = moderate_response(mock_response_text)
+    # Moderate response
+    ethical_flags_response = moderate_response(response_text)
     if ethical_flags_response["harmful_content_detected"] or ethical_flags_response["pii_leak_detected"]:
-        print(f"WARNING: Harmful content or PII leak detected in LLM response: {mock_response_text}")
+        print(f"WARNING: Harmful content or PII leak detected in LLM response: {response_text}")
         # SEC-LLM-003: Use generated request_id for audit event
         log_audit_event(
             entity_type="LLM_SERVICE",
             entity_id=request_id,
             event_type="LLM_RESPONSE_FLAGGED",
             description="LLM chat response flagged for ethical concerns.",
-            metadata={"response_snippet": mock_response_text[:100], "flags": ethical_flags_response, "request_id": request_id}
+            metadata={"response_snippet": response_text[:100], "flags": ethical_flags_response, "request_id": request_id}
         )
 
     llm_response = schemas.LLMResponse(
         model_name=chat_request.model_name,
-        response_text=mock_response_text,
-        finish_reason="stop",
-        prompt_tokens=len(sanitized_prompt.split()), # Mock token count
-        completion_tokens=len(mock_response_text.split()),
-        total_tokens=len(sanitized_prompt.split()) + len(mock_response_text.split()),
+        response_text=response_text,
+        finish_reason=finish_reason,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        total_tokens=total_tokens,
         detected_bias=False, # Bias detection is handled by Bias Detection Service
         detected_injection=injection_detected,
         ethical_flags=ethical_flags_response,
@@ -201,32 +280,54 @@ async def tool_use_completion(
             metadata={"prompt": original_prompt, "model": tool_use_request.model_name, "request_id": request_id}
         )
 
-    # Simulate LLM tool-use call
-    time.sleep(3) # Simulate network latency and processing time
-    mock_response_text = f"Simulated tool-use response for: '{sanitized_prompt}'. Tools used: {len(tool_use_request.tools)}."
-    if injection_detected:
-        mock_response_text = "I cannot execute tools based on prompts that attempt to bypass my safety guidelines. " + mock_response_text
+    # Call OpenAI API with tools
+    messages = [{"role": "user", "content": sanitized_prompt}]
+    tools_formatted = []
+    if tool_use_request.tools:
+        for tool in tool_use_request.tools:
+            tools_formatted.append({
+                "type": "function",
+                "function": {
+                    "name": tool["name"],
+                    "description": tool.get("description", ""),
+                    "parameters": tool.get("parameters", {})
+                }
+            })
+    try:
+        api_response = call_llm_api(tool_use_request.model_name, messages, tools_formatted)
+        message = api_response["choices"][0]["message"]
+        response_text = message.get("content", "")
+        tool_calls = message.get("tool_calls", [])
+        if tool_calls:
+            response_text += " " + str(tool_calls)  # Append tool calls to response
+        finish_reason = api_response["choices"][0]["finish_reason"]
+        usage = api_response.get("usage", {})
+        prompt_tokens = usage.get("prompt_tokens", len(sanitized_prompt.split()))
+        completion_tokens = usage.get("completion_tokens", len(response_text.split()))
+        total_tokens = usage.get("total_tokens", prompt_tokens + completion_tokens)
+    except requests.RequestException as e:
+        raise HTTPException(status_code=500, detail=f"LLM API error: {str(e)}")
 
-    # Simulate response moderation
-    ethical_flags_response = moderate_response(mock_response_text)
+    # Moderate response
+    ethical_flags_response = moderate_response(response_text)
     if ethical_flags_response["harmful_content_detected"] or ethical_flags_response["pii_leak_detected"]:
-        print(f"WARNING: Harmful content or PII leak detected in LLM tool-use response: {mock_response_text}")
+        print(f"WARNING: Harmful content or PII leak detected in LLM tool-use response: {response_text}")
         # SEC-LLM-003: Use generated request_id for audit event
         log_audit_event(
             entity_type="LLM_SERVICE",
             entity_id=request_id,
             event_type="LLM_RESPONSE_FLAGGED",
             description="LLM tool-use response flagged for ethical concerns.",
-            metadata={"response_snippet": mock_response_text[:100], "flags": ethical_flags_response, "request_id": request_id}
+            metadata={"response_snippet": response_text[:100], "flags": ethical_flags_response, "request_id": request_id}
         )
 
     llm_response = schemas.LLMResponse(
         model_name=tool_use_request.model_name,
-        response_text=mock_response_text,
-        finish_reason="tool_calls",
-        prompt_tokens=len(sanitized_prompt.split()),
-        completion_tokens=len(mock_response_text.split()),
-        total_tokens=len(sanitized_prompt.split()) + len(mock_response_text.split()),
+        response_text=response_text,
+        finish_reason=finish_reason,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        total_tokens=total_tokens,
         detected_bias=False,
         detected_injection=injection_detected,
         ethical_flags=ethical_flags_response,
@@ -259,3 +360,8 @@ async def tool_use_completion(
     )
 
     return llm_response
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring."""
+    return {"status": "healthy", "service": "alznexus_llm_service"}

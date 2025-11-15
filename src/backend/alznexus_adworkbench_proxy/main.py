@@ -4,7 +4,7 @@ from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
 from . import models, schemas, crud
 from .database import engine, get_db, Base
-from .tasks import simulate_federated_query
+from .tasks import execute_federated_query
 
 app = FastAPI(
     title="AlzNexus AD Workbench API Proxy Service",
@@ -37,8 +37,8 @@ async def query_adworkbench(
     """Executes a federated query against AD Workbench data sources asynchronously."""
     db_query = crud.create_adworkbench_query(db, query)
     
-    # Dispatch the federated query simulation task to Celery
-    simulate_federated_query.delay(db_query.id)
+    # Dispatch the federated query task to Celery
+    execute_federated_query.delay(db_query.id)
     
     return schemas.QueryStatusResponse(
         id=db_query.id,
@@ -86,3 +86,8 @@ async def scan_adworkbench_data(
     print("Initiating AD Workbench data scan (placeholder).")
     # Simulate scanning for data
     return {"message": "AD Workbench data scan initiated (placeholder).", "datasets_found": ["dataset_A", "dataset_B"]}
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring."""
+    return {"status": "healthy", "service": "alznexus_adworkbench_proxy"}
