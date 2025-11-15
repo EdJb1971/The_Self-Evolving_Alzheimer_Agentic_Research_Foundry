@@ -8,7 +8,7 @@ from datetime import datetime
 
 from .database import get_db, create_tables
 from . import crud, models, schemas
-from .vector_db import get_vector_db_manager, get_intelligent_retriever, get_rate_limiter, TextChunker
+from .vector_db import get_vector_db_manager, IntelligentContextRetriever, get_rate_limiter, IntelligentTextChunker
 from .celery_app import celery_app
 
 # Configure logging
@@ -198,35 +198,47 @@ async def get_rag_context(
     request: schemas.RAGContextRequest,
     db: Session = Depends(get_db)
 ):
-    """Get relevant context for RAG using semantic search."""
+    """Get intelligent context for RAG using semantic search with rich metadata."""
     start_time = datetime.utcnow()
 
-    # Perform semantic search
+    # Use intelligent context retriever
     vector_db = get_vector_db_manager()
-    search_results = vector_db.search_similar(
+    retriever = IntelligentContextRetriever(vector_db)
+
+    retrieval_result = retriever.retrieve_context(
         query=request.query,
-        n_results=request.max_chunks
+        model_name=request.model_name or "gemini-1.5-flash",
+        max_tokens=request.max_tokens,
+        min_relevance_score=request.similarity_threshold,
+        max_chunks=request.max_chunks,
+        context_window=request.context_window,
+        requester_agent=request.requester_agent,
+        document_types=request.document_types,
+        prioritize_recent=request.prioritize_recent,
+        include_metadata=request.include_metadata
     )
 
-    # Filter by similarity threshold
+    # Handle rate limiting
+    if 'error' in retrieval_result:
+        if retrieval_result['error'] == 'rate_limit_exceeded':
+            raise HTTPException(
+                status_code=429,
+                detail=f"Rate limit exceeded. Try again in {retrieval_result['backoff_seconds']} seconds."
+            )
+        else:
+            raise HTTPException(status_code=400, detail=retrieval_result['error'])
+
+    # Extract relevant chunks for logging
     relevant_chunks = [
-        chunk for chunk in search_results['results']
-        if chunk['similarity_score'] >= request.similarity_threshold
+        {
+            'chunk_id': chunk['chunk_id'],
+            'document_id': chunk['document_id'],
+            'content': chunk['content'],
+            'similarity_score': chunk['relevance_score'],
+            'metadata': chunk['metadata']
+        }
+        for chunk in retrieval_result['selected_chunks']
     ]
-
-    # Build context text with surrounding chunks
-    context_parts = []
-    for chunk in relevant_chunks[:request.max_chunks]:
-        context_parts.append(chunk['content'])
-
-        # Add surrounding chunks if requested
-        if request.context_window > 0:
-            surrounding = get_surrounding_chunks(db, chunk['document_id'], chunk['chunk_index'], request.context_window)
-            for surr_chunk in surrounding:
-                if surr_chunk['content'] not in context_parts:  # Avoid duplicates
-                    context_parts.append(surr_chunk['content'])
-
-    context_text = "\n\n".join(context_parts)
 
     # Log the query
     response_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
@@ -234,10 +246,10 @@ async def get_rag_context(
         db,
         schemas.KnowledgeQueryCreate(
             query_text=request.query,
-            query_type="rag_context",
+            query_type="intelligent_rag_context",
             requester_agent=request.requester_agent,
             retrieved_document_ids=[chunk['document_id'] for chunk in relevant_chunks],
-            relevance_scores={str(chunk['document_id']): chunk['similarity_score'] for chunk in relevant_chunks},
+            relevance_scores={str(chunk['document_id']): chunk['relevance_score'] for chunk in relevant_chunks},
             response_time_ms=response_time
         )
     )
@@ -246,11 +258,14 @@ async def get_rag_context(
         query=request.query,
         relevant_chunks=relevant_chunks,
         total_chunks_found=len(relevant_chunks),
-        context_text=context_text,
+        context_text=retrieval_result['context_text'],
         metadata={
-            "response_time_ms": response_time,
-            "similarity_threshold": request.similarity_threshold,
-            "max_chunks_requested": request.max_chunks
+            'total_tokens_used': retrieval_result['total_tokens_used'],
+            'max_tokens_allowed': retrieval_result['max_tokens_allowed'],
+            'relevance_stats': retrieval_result['relevance_stats'],
+            'rate_limit_info': retrieval_result['rate_limit_info'],
+            'model_name': request.model_name or "gemini-1.5-flash",
+            'response_time_ms': response_time
         }
     )
 
@@ -512,7 +527,13 @@ def process_document_chunks(document_id: int, chunk_size: int = 1000, chunk_over
             return
 
         # Initialize chunker and vector DB
-        chunker = TextChunker(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+        # Determine domain context based on document type
+        domain_context = "alzheimer" if "alzheimer" in document.document_type.lower() else "general"
+        chunker = IntelligentTextChunker(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            domain_context=domain_context
+        )
         vector_db = get_vector_db_manager()
 
         # Chunk the document
@@ -521,7 +542,9 @@ def process_document_chunks(document_id: int, chunk_size: int = 1000, chunk_over
             metadata={
                 "document_type": document.document_type,
                 "source_agent": document.source_agent,
-                "tags": document.tags or []
+                "tags": document.tags or [],
+                "document_id": document.id,
+                "title": document.title
             }
         )
 

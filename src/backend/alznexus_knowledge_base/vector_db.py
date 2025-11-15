@@ -6,6 +6,8 @@ from typing import List, Dict, Any, Optional, Tuple
 import logging
 import os
 from datetime import datetime
+import re
+from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
@@ -192,86 +194,345 @@ class VectorDatabaseManager:
             logger.error(f"Failed to get collection stats: {str(e)}")
             return {'error': str(e)}
 
-class TextChunker:
-    """Intelligent text chunking for knowledge documents."""
+class IntelligentTextChunker:
+    """Advanced text chunking that analyzes content semantics and adds rich metadata."""
 
     def __init__(
         self,
         chunk_size: int = 1000,
         chunk_overlap: int = 200,
-        separator_patterns: Optional[List[str]] = None
+        domain_context: str = "general"
     ):
-        """Initialize the text chunker."""
+        """Initialize the intelligent text chunker."""
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
-        self.separator_patterns = separator_patterns or [
-            "\n\n",  # Paragraph breaks
-            "\n",    # Line breaks
-            ". ",    # Sentence endings
-            " ",     # Word boundaries
-        ]
+        self.domain_context = domain_context
+
+        # Domain-specific patterns for Alzheimer's research
+        self.domain_patterns = {
+            "alzheimer": {
+                "biomarkers": [
+                    r"biomarker", r"amyloid", r"tau", r"p-tau", r"abeta", r"CSF",
+                    r"plasma", r"blood", r"imaging", r"PET", r"MRI", r"FDG"
+                ],
+                "symptoms": [
+                    r"cognition", r"memory", r"dementia", r"MCI", r"cognitive decline",
+                    r"Alzheimer's disease", r"AD", r"neurodegenerative"
+                ],
+                "treatments": [
+                    r"drug", r"therapy", r"treatment", r"clinical trial", r"phase",
+                    r"efficacy", r"side effects", r"dosage", r"administration"
+                ],
+                "genetics": [
+                    r"APOE", r"PSEN1", r"PSEN2", r"APP", r"mutation", r"genetic",
+                    r"risk factor", r"heritability"
+                ],
+                "pathways": [
+                    r"pathway", r"mechanism", r"cascade", r"amyloid cascade",
+                    r"tau pathology", r"neuroinflammation", r"synaptic dysfunction"
+                ]
+            }
+        }
+
+        # Content type patterns
+        self.content_patterns = {
+            "methodology": [
+                r"method", r"protocol", r"procedure", r"experimental design",
+                r"statistical analysis", r"data collection", r"assay"
+            ],
+            "results": [
+                r"result", r"finding", r"outcome", r"significant", r"p-value",
+                r"correlation", r"association", r"effect size"
+            ],
+            "conclusion": [
+                r"conclusion", r"summary", r"implication", r"future direction",
+                r"clinical relevance", r"therapeutic potential"
+            ],
+            "references": [
+                r"reference", r"citation", r"literature", r"previous study",
+                r"published", r"review"
+            ]
+        }
 
     def chunk_text(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-        """Chunk text into semantically meaningful pieces."""
+        """Chunk text with intelligent semantic analysis and rich metadata."""
         if not text:
             return []
+
+        # Pre-analyze the entire text for structure
+        text_analysis = self._analyze_text_structure(text)
 
         chunks = []
         start = 0
         chunk_index = 0
 
         while start < len(text):
-            # Find the end of the chunk
-            end = start + self.chunk_size
+            # Find optimal chunk boundaries based on semantic analysis
+            chunk_boundaries = self._find_semantic_chunk_boundary(
+                text, start, self.chunk_size, text_analysis
+            )
 
-            if end >= len(text):
-                # Last chunk
-                chunk_text = text[start:]
-            else:
-                # Try to find a good breaking point
-                chunk_text = text[start:end]
-                best_break = self._find_best_break_point(chunk_text, text[end:])
+            chunk_text = text[start:chunk_boundaries['end']]
+            chunk_metadata = self._extract_chunk_metadata(
+                chunk_text, start, chunk_boundaries['end'], text_analysis
+            )
 
-                if best_break > 0:
-                    chunk_text = chunk_text[:best_break]
-                    end = start + best_break
-
-            if chunk_text.strip():  # Only add non-empty chunks
+            if chunk_text.strip():
                 chunks.append({
                     'chunk_index': chunk_index,
                     'content': chunk_text.strip(),
                     'chunk_metadata': {
                         'start_position': start,
-                        'end_position': end,
+                        'end_position': chunk_boundaries['end'],
                         'length': len(chunk_text),
+                        'semantic_score': chunk_boundaries['semantic_score'],
+                        'content_type': chunk_metadata['content_type'],
+                        'key_entities': chunk_metadata['key_entities'],
+                        'domain_relevance': chunk_metadata['domain_relevance'],
+                        'recall_context': chunk_metadata['recall_context'],
+                        'relationship_hints': chunk_metadata['relationship_hints'],
                         **(metadata or {})
                     }
                 })
                 chunk_index += 1
 
-            # Move start position with overlap
-            start = max(start + 1, end - self.chunk_overlap)
+            # Move start position with intelligent overlap
+            start = max(start + 1, chunk_boundaries['end'] - self.chunk_overlap)
 
         return chunks
 
-    def _find_best_break_point(self, chunk_text: str, remaining_text: str) -> int:
-        """Find the best point to break the chunk."""
-        # Try separator patterns in order of preference
-        for separator in self.separator_patterns:
-            # Look for separator in the last part of chunk_text
-            search_start = max(0, len(chunk_text) - 200)  # Look in last 200 chars
-            last_separator = chunk_text.rfind(separator, search_start)
+    def _analyze_text_structure(self, text: str) -> Dict[str, Any]:
+        """Analyze the overall structure and content of the text."""
+        analysis = {
+            'sentences': [],
+            'paragraphs': [],
+            'sections': [],
+            'domain_entities': defaultdict(list),
+            'content_types': defaultdict(list),
+            'key_phrases': []
+        }
 
-            if last_separator > len(chunk_text) * 0.5:  # Don't break too early
-                return last_separator + len(separator)
+        # Split into sentences and paragraphs
+        sentences = [s.strip() for s in text.replace('\n', ' ').split('.') if s.strip()]
+        paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
 
-        # If no good separator found, try to break at word boundary in remaining text
-        for i in range(min(50, len(remaining_text))):
-            if remaining_text[i] in [' ', '\n', '\t']:
-                return len(chunk_text) + i
+        analysis['sentences'] = sentences
+        analysis['paragraphs'] = paragraphs
 
-        # Fallback: break at chunk_size
-        return len(chunk_text)
+        # Analyze domain-specific content
+        for category, patterns in self.domain_patterns.get(self.domain_context, {}).items():
+            for pattern in patterns:
+                matches = [i for i, sent in enumerate(sentences) if pattern.lower() in sent.lower()]
+                if matches:
+                    analysis['domain_entities'][category].extend(matches)
+
+        # Analyze content types
+        for content_type, patterns in self.content_patterns.items():
+            for pattern in patterns:
+                matches = [i for i, sent in enumerate(sentences) if pattern.lower() in sent.lower()]
+                if matches:
+                    analysis['content_types'][content_type].extend(matches)
+
+        return analysis
+
+    def _find_semantic_chunk_boundary(self, text: str, start: int, max_size: int,
+                                    text_analysis: Dict[str, Any]) -> Dict[str, Any]:
+        """Find the optimal boundary for a chunk based on semantic analysis."""
+        end = min(start + max_size, len(text))
+
+        if end >= len(text):
+            return {
+                'end': end,
+                'semantic_score': 1.0,
+                'boundary_type': 'end_of_text'
+            }
+
+        # Look for semantic boundaries within the chunk window
+        best_boundary = end
+        best_score = 0.0
+        boundary_type = 'size_limit'
+
+        chunk_text = text[start:end]
+
+        # Prefer paragraph boundaries
+        paragraph_breaks = []
+        pos = start
+        for para in text_analysis['paragraphs']:
+            para_start = text.find(para, pos)
+            if para_start >= start and para_start < end:
+                para_end = para_start + len(para)
+                if para_end > start and para_end < end:
+                    paragraph_breaks.append(para_end)
+
+        if paragraph_breaks:
+            best_boundary = max(paragraph_breaks)
+            best_score = 0.9
+            boundary_type = 'paragraph'
+
+        # Look for sentence boundaries if no good paragraph break
+        if best_score < 0.8:
+            sentences = text_analysis['sentences']
+            for i, sentence in enumerate(sentences):
+                sent_pos = text.find(sentence, start)
+                if sent_pos >= start and sent_pos + len(sentence) <= end:
+                    sent_end = sent_pos + len(sentence)
+                    if sent_end > start and abs(sent_end - end) < abs(best_boundary - end):
+                        # Calculate semantic coherence score
+                        semantic_score = self._calculate_semantic_coherence(
+                            text[start:sent_end], text_analysis, i
+                        )
+                        if semantic_score > best_score:
+                            best_boundary = sent_end
+                            best_score = semantic_score
+                            boundary_type = 'sentence'
+
+        return {
+            'end': best_boundary,
+            'semantic_score': best_score,
+            'boundary_type': boundary_type
+        }
+
+    def _calculate_semantic_coherence(self, chunk_text: str, text_analysis: Dict[str, Any],
+                                    sentence_idx: int) -> float:
+        """Calculate how semantically coherent a chunk is."""
+        score = 0.5  # Base score
+
+        # Check for domain entity concentration
+        domain_entities = 0
+        for category, positions in text_analysis['domain_entities'].items():
+            if sentence_idx in positions:
+                domain_entities += 1
+
+        if domain_entities > 0:
+            score += min(domain_entities * 0.2, 0.3)  # Up to 0.3 for domain relevance
+
+        # Check for content type coherence
+        content_types = 0
+        for content_type, positions in text_analysis['content_types'].items():
+            if sentence_idx in positions:
+                content_types += 1
+
+        if content_types > 0:
+            score += min(content_types * 0.15, 0.2)  # Up to 0.2 for content coherence
+
+        # Length appropriateness (prefer chunks that are substantial but not too long)
+        length_ratio = len(chunk_text) / self.chunk_size
+        if 0.7 <= length_ratio <= 1.0:
+            score += 0.1
+
+        return min(score, 1.0)
+
+    def _extract_chunk_metadata(self, chunk_text: str, start: int, end: int,
+                              text_analysis: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract rich metadata for the chunk to aid recall."""
+        metadata = {
+            'content_type': 'general',
+            'key_entities': [],
+            'domain_relevance': {},
+            'recall_context': {},
+            'relationship_hints': []
+        }
+
+        # Determine primary content type
+        content_type_scores = defaultdict(float)
+        for content_type, patterns in self.content_patterns.items():
+            for pattern in patterns:
+                if pattern.lower() in chunk_text.lower():
+                    content_type_scores[content_type] += 1
+
+        if content_type_scores:
+            metadata['content_type'] = max(content_type_scores, key=content_type_scores.get)
+
+        # Extract key entities and domain relevance
+        for category, patterns in self.domain_patterns.get(self.domain_context, {}).items():
+            entities_found = []
+            relevance_score = 0
+
+            for pattern in patterns:
+                if pattern.lower() in chunk_text.lower():
+                    entities_found.append(pattern)
+                    relevance_score += 1
+
+            if entities_found:
+                metadata['key_entities'].extend(entities_found)
+                metadata['domain_relevance'][category] = {
+                    'score': relevance_score,
+                    'entities': entities_found
+                }
+
+        # Generate recall context hints
+        metadata['recall_context'] = {
+            'temporal_indicators': self._extract_temporal_context(chunk_text),
+            'methodological_context': self._extract_methodological_context(chunk_text),
+            'relationship_context': self._extract_relationship_context(chunk_text),
+            'importance_indicators': self._extract_importance_indicators(chunk_text)
+        }
+
+        # Generate relationship hints for connecting this chunk to others
+        metadata['relationship_hints'] = self._generate_relationship_hints(
+            chunk_text, text_analysis, start, end
+        )
+
+        return metadata
+
+    def _extract_temporal_context(self, text: str) -> List[str]:
+        """Extract temporal indicators for recall context."""
+        temporal_keywords = [
+            'recently', 'previously', 'currently', 'future', 'ongoing',
+            'clinical trial', 'phase', 'study', 'research', 'published'
+        ]
+        return [word for word in temporal_keywords if word in text.lower()]
+
+    def _extract_methodological_context(self, text: str) -> List[str]:
+        """Extract methodological context for scientific recall."""
+        method_keywords = [
+            'statistical', 'analysis', 'correlation', 'regression', 'p-value',
+            'significant', 'cohort', 'randomized', 'controlled', 'double-blind'
+        ]
+        return [word for word in method_keywords if word in text.lower()]
+
+    def _extract_relationship_context(self, text: str) -> List[str]:
+        """Extract relationship indicators between concepts."""
+        relationship_keywords = [
+            'associated with', 'correlated with', 'linked to', 'related to',
+            'causes', 'leads to', 'results in', 'affects', 'influences'
+        ]
+        found_relationships = []
+        for keyword in relationship_keywords:
+            if keyword in text.lower():
+                found_relationships.append(keyword)
+        return found_relationships
+
+    def _extract_importance_indicators(self, text: str) -> List[str]:
+        """Extract indicators of importance or significance."""
+        importance_keywords = [
+            'important', 'significant', 'key', 'critical', 'major',
+            'breakthrough', 'novel', 'innovative', 'promising', 'potential'
+        ]
+        return [word for word in importance_keywords if word in text.lower()]
+
+    def _generate_relationship_hints(self, chunk_text: str, text_analysis: Dict[str, Any],
+                                   start: int, end: int) -> List[str]:
+        """Generate hints about how this chunk relates to other content."""
+        hints = []
+
+        # Check for continuation patterns
+        if 'continued' in chunk_text.lower() or 'following' in chunk_text.lower():
+            hints.append("continuation_of_previous")
+
+        # Check for summary patterns
+        if 'summary' in chunk_text.lower() or 'conclusion' in chunk_text.lower():
+            hints.append("summarizes_previous_content")
+
+        # Check for methodological connections
+        if any(word in chunk_text.lower() for word in ['method', 'protocol', 'procedure']):
+            hints.append("describes_methodology")
+
+        # Check for result connections
+        if any(word in chunk_text.lower() for word in ['result', 'finding', 'outcome']):
+            hints.append("contains_results")
+
+        return hints
 
 # Global instance for easy access
 vector_db_manager = None
@@ -471,26 +732,32 @@ class IntelligentContextRetriever:
             where=where_clause
         )
 
-        # Filter and rank candidates
+        # Filter and rank candidates with semantic metadata enhancement
         candidates = []
         for chunk_result in search_results['results']:
             if chunk_result['similarity_score'] >= min_relevance_score:
                 # Get document info
                 document_id = chunk_result['document_id']
-                # Note: In a real implementation, you'd fetch document metadata here
 
                 # Estimate tokens for this chunk
                 token_count = self.token_estimator.estimate_tokens(
                     chunk_result['content'], model_name
                 )
 
+                # Calculate enhanced relevance score using semantic metadata
+                enhanced_score = self._calculate_enhanced_relevance_score(
+                    chunk_result, query, min_relevance_score
+                )
+
                 candidates.append({
                     'chunk_id': chunk_result['chunk_id'],
                     'document_id': document_id,
                     'content': chunk_result['content'],
-                    'relevance_score': chunk_result['similarity_score'],
+                    'relevance_score': enhanced_score,
+                    'base_similarity': chunk_result['similarity_score'],
                     'token_count': token_count,
-                    'metadata': chunk_result['metadata']
+                    'metadata': chunk_result['metadata'],
+                    'semantic_metadata': chunk_result['metadata'].get('chunk_metadata', {})
                 })
 
         # Filter by document types if specified
@@ -589,6 +856,125 @@ class IntelligentContextRetriever:
                 'include_metadata': include_metadata
             }
         }
+
+    def _calculate_enhanced_relevance_score(self, chunk_result: Dict[str, Any],
+                                          query: str, base_threshold: float) -> float:
+        """Calculate enhanced relevance score using semantic metadata."""
+        base_score = chunk_result['similarity_score']
+        enhancement = 0.0
+
+        # Get semantic metadata
+        semantic_meta = chunk_result['metadata'].get('chunk_metadata', {})
+
+        # Boost for domain relevance
+        domain_relevance = semantic_meta.get('domain_relevance', {})
+        if domain_relevance:
+            # Check if query contains domain-related terms
+            query_lower = query.lower()
+            domain_boost = 0.0
+
+            for category, data in domain_relevance.items():
+                if isinstance(data, dict) and 'entities' in data:
+                    for entity in data['entities']:
+                        if entity.lower() in query_lower:
+                            domain_boost += 0.15 * data.get('score', 1)
+
+            enhancement += min(domain_boost, 0.3)  # Cap at 0.3
+
+        # Boost for content type relevance
+        content_type = semantic_meta.get('content_type', '')
+        query_intent = self._analyze_query_intent(query)
+
+        if content_type and query_intent:
+            if self._content_type_matches_intent(content_type, query_intent):
+                enhancement += 0.2
+
+        # Boost for key entities in query
+        key_entities = semantic_meta.get('key_entities', [])
+        if key_entities:
+            entity_matches = sum(1 for entity in key_entities
+                               if entity.lower() in query.lower())
+            if entity_matches > 0:
+                enhancement += min(entity_matches * 0.1, 0.25)
+
+        # Boost for recall context relevance
+        recall_context = semantic_meta.get('recall_context', {})
+        if recall_context:
+            context_boost = self._calculate_context_boost(query, recall_context)
+            enhancement += context_boost
+
+        # Boost for semantic coherence score
+        semantic_score = semantic_meta.get('semantic_score', 0.5)
+        if semantic_score > 0.7:
+            enhancement += (semantic_score - 0.7) * 0.2
+
+        # Ensure final score doesn't exceed reasonable bounds
+        final_score = base_score + enhancement
+        return min(final_score, 1.0)
+
+    def _analyze_query_intent(self, query: str) -> str:
+        """Analyze the intent of the query to match with content types."""
+        query_lower = query.lower()
+
+        # Check for methodological queries
+        if any(word in query_lower for word in ['how', 'method', 'protocol', 'procedure']):
+            return 'methodology'
+
+        # Check for results/finding queries
+        if any(word in query_lower for word in ['result', 'finding', 'outcome', 'what']):
+            return 'results'
+
+        # Check for conclusion/summary queries
+        if any(word in query_lower for word in ['conclusion', 'summary', 'implication']):
+            return 'conclusion'
+
+        # Check for reference/literature queries
+        if any(word in query_lower for word in ['reference', 'study', 'research', 'literature']):
+            return 'references'
+
+        return 'general'
+
+    def _content_type_matches_intent(self, content_type: str, query_intent: str) -> bool:
+        """Check if content type matches query intent."""
+        intent_mapping = {
+            'methodology': ['methodology'],
+            'results': ['results'],
+            'conclusion': ['conclusion'],
+            'references': ['references']
+        }
+
+        return content_type in intent_mapping.get(query_intent, [])
+
+    def _calculate_context_boost(self, query: str, recall_context: Dict[str, Any]) -> float:
+        """Calculate boost based on recall context relevance."""
+        boost = 0.0
+        query_lower = query.lower()
+
+        # Check temporal indicators
+        temporal_indicators = recall_context.get('temporal_indicators', [])
+        if temporal_indicators:
+            if any(indicator in query_lower for indicator in temporal_indicators):
+                boost += 0.1
+
+        # Check methodological context
+        methodological_context = recall_context.get('methodological_context', [])
+        if methodological_context:
+            if any(context in query_lower for context in methodological_context):
+                boost += 0.1
+
+        # Check relationship context
+        relationship_context = recall_context.get('relationship_context', [])
+        if relationship_context:
+            if any(relationship in query_lower for relationship in relationship_context):
+                boost += 0.1
+
+        # Check importance indicators
+        importance_indicators = recall_context.get('importance_indicators', [])
+        if importance_indicators:
+            if any(indicator in query_lower for indicator in importance_indicators):
+                boost += 0.1
+
+        return min(boost, 0.2)  # Cap at 0.2
 
     def _truncate_to_tokens(self, text: str, max_tokens: int, model_name: str) -> Optional[str]:
         """Truncate text to fit within token limit."""

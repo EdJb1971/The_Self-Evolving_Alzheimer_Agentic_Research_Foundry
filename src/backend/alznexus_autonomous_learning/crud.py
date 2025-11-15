@@ -56,12 +56,91 @@ def get_agent_performance_stats(db: Session, agent_id: str) -> Dict[str, Any]:
 
 # Learning Pattern CRUD
 def create_learning_pattern(db: Session, pattern: schemas.LearningPatternCreate) -> models.LearningPattern:
-    """Create a new learning pattern"""
+    """Create a new learning pattern with supersession checking"""
+    # Check for existing patterns that might be superseded by this new one
+    existing_patterns = db.query(models.LearningPattern).filter(
+        and_(
+            models.LearningPattern.pattern_type == pattern.pattern_type,
+            models.LearningPattern.domain == pattern.domain,
+            models.LearningPattern.validation_status == "validated",
+            models.LearningPattern.superseded_by.is_(None)  # Only check non-superseded patterns
+        )
+    ).all()
+
+    # Check if this new pattern should supersede existing ones
+    patterns_to_supersede = []
+    for existing in existing_patterns:
+        if _should_supersede(existing, pattern):
+            patterns_to_supersede.append(existing)
+
+    # Create the new pattern
     db_pattern = models.LearningPattern(**pattern.dict())
     db.add(db_pattern)
     db.commit()
     db.refresh(db_pattern)
+
+    # Supersede old patterns
+    for old_pattern in patterns_to_supersede:
+        _supersede_pattern(db, old_pattern, db_pattern)
+
     return db_pattern
+
+def _should_supersede(old_pattern: models.LearningPattern, new_pattern: schemas.LearningPatternCreate) -> bool:
+    """Determine if new pattern should supersede old pattern"""
+    # Supersede if new pattern has significantly higher confidence
+    confidence_threshold = 0.15  # 15% improvement required
+    if new_pattern.confidence > old_pattern.confidence + confidence_threshold:
+        return True
+
+    # Supersede if new pattern is much more recent and has similar confidence
+    time_threshold_days = 30
+    if (new_pattern.discovered_at - old_pattern.discovered_at).days > time_threshold_days:
+        confidence_similarity = abs(new_pattern.confidence - old_pattern.confidence) < 0.1
+        if confidence_similarity:
+            return True
+
+    # Supersede if new pattern has more validation evidence
+    if hasattr(new_pattern, 'validation_count') and hasattr(old_pattern, 'validation_count'):
+        if new_pattern.validation_count > old_pattern.validation_count * 1.5:
+            return True
+
+    return False
+
+def _supersede_pattern(db: Session, old_pattern: models.LearningPattern, new_pattern: models.LearningPattern):
+    """Mark old pattern as superseded by new pattern"""
+    old_pattern.superseded_by = new_pattern.id
+    old_pattern.superseded_at = datetime.utcnow()
+    old_pattern.validation_status = "superseded"
+
+    # Log the supersession
+    db.commit()
+
+    # Update any context enrichments that used the old pattern
+    _update_context_enrichments_for_superseded_pattern(db, old_pattern, new_pattern)
+
+def _update_context_enrichments_for_superseded_pattern(db: Session, old_pattern: models.LearningPattern, new_pattern: models.LearningPattern):
+    """Update context enrichments to use new pattern instead of superseded one"""
+    # Find enrichments that reference the old pattern
+    enrichments_to_update = db.query(models.ContextEnrichment).filter(
+        models.ContextEnrichment.source_patterns.contains([old_pattern.id])
+    ).all()
+
+    for enrichment in enrichments_to_update:
+        # Replace old pattern ID with new pattern ID in source_patterns
+        if enrichment.source_patterns:
+            updated_patterns = [new_pattern.id if pid == old_pattern.id else pid
+                              for pid in enrichment.source_patterns]
+            enrichment.source_patterns = updated_patterns
+
+            # Update enrichment metadata
+            enrichment.enrichment_metadata = enrichment.enrichment_metadata or {}
+            enrichment.enrichment_metadata["pattern_supersession"] = {
+                "old_pattern_id": old_pattern.id,
+                "new_pattern_id": new_pattern.id,
+                "superseded_at": datetime.utcnow().isoformat()
+            }
+
+    db.commit()
 
 def get_learning_pattern(db: Session, pattern_id: int) -> Optional[models.LearningPattern]:
     """Get learning pattern by ID"""
@@ -76,17 +155,46 @@ def get_learning_patterns(
     skip: int = 0,
     limit: int = 100
 ) -> List[models.LearningPattern]:
-    """Get learning patterns with optional filtering"""
+    """Get learning patterns with optional filtering - excludes superseded patterns by default"""
     query = db.query(models.LearningPattern)
+
+    # Always exclude superseded patterns unless explicitly requested
+    if validation_status != "superseded":
+        query = query.filter(models.LearningPattern.superseded_by.is_(None))
+
     if pattern_type:
         query = query.filter(models.LearningPattern.pattern_type == pattern_type)
     if domain:
         query = query.filter(models.LearningPattern.domain == domain)
-    if validation_status:
+    if validation_status and validation_status != "superseded":
         query = query.filter(models.LearningPattern.validation_status == validation_status)
     if min_confidence:
         query = query.filter(models.LearningPattern.confidence >= min_confidence)
+
     return query.order_by(desc(models.LearningPattern.discovered_at)).offset(skip).limit(limit).all()
+
+def get_active_patterns_only(
+    db: Session,
+    pattern_type: Optional[str] = None,
+    domain: Optional[str] = None,
+    min_confidence: Optional[float] = None,
+    limit: int = 100
+) -> List[models.LearningPattern]:
+    """Get only active (non-superseded) patterns for guaranteed forward progression"""
+    return db.query(models.LearningPattern).filter(
+        and_(
+            models.LearningPattern.superseded_by.is_(None),
+            models.LearningPattern.validation_status == "validated",
+            models.LearningPattern.confidence >= (min_confidence or 0.0)
+        )
+    ).filter(
+        pattern_type and models.LearningPattern.pattern_type == pattern_type or True
+    ).filter(
+        domain and models.LearningPattern.domain == domain or True
+    ).order_by(
+        desc(models.LearningPattern.discovered_at),
+        desc(models.LearningPattern.confidence)
+    ).limit(limit).all()
 
 def update_pattern_validation(db: Session, pattern_id: int, validation_status: str) -> Optional[models.LearningPattern]:
     """Update pattern validation status"""
@@ -624,3 +732,22 @@ def calculate_evolution_velocity(db: Session) -> float:
     velocity = improvement / days_elapsed if days_elapsed > 0 else 0
 
     return round(velocity, 4)
+
+def get_recent_performances_by_agent_and_task(db: Session, agent_id: str, task_type: str, limit: int = 10) -> List[models.AgentPerformance]:
+    """Get recent performances for a specific agent and task type"""
+    return db.query(models.AgentPerformance).filter(
+        and_(
+            models.AgentPerformance.agent_id == agent_id,
+            models.AgentPerformance.task_type == task_type
+        )
+    ).order_by(desc(models.AgentPerformance.timestamp)).limit(limit).all()
+
+def get_patterns_by_type_and_domain(db: Session, pattern_type: str, domain: str) -> List[models.LearningPattern]:
+    """Get learning patterns by type and domain"""
+    return db.query(models.LearningPattern).filter(
+        and_(
+            models.LearningPattern.pattern_type == pattern_type,
+            models.LearningPattern.domain == domain,
+            models.LearningPattern.superseded_by.is_(None)  # Only active patterns
+        )
+    ).order_by(desc(models.LearningPattern.confidence)).all()

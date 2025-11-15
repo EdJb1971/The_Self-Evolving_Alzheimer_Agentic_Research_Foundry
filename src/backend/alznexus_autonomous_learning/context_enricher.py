@@ -92,27 +92,29 @@ class ContextEnricher:
             task_types = list(set(p.task_type for p in recent_perf))
             domains = [self._task_type_to_domain(tt) for tt in task_types]
 
-            # Get patterns from relevant domains with high confidence
+            # Get patterns from relevant domains with high confidence - ONLY non-superseded
             relevant_patterns = []
             for domain in domains:
                 patterns = crud.get_learning_patterns(
                     db,
                     domain=domain,
                     min_confidence=self.enrichment_threshold,
-                    validation_status="validated",
+                    validation_status="validated",  # Only validated, non-superseded patterns
                     limit=20
                 )
                 relevant_patterns.extend(patterns)
 
-            # Remove duplicates and sort by confidence
+            # Remove duplicates and sort by recency and confidence (newest first)
             seen_ids = set()
             unique_patterns = []
-            for pattern in sorted(relevant_patterns, key=lambda x: x.confidence, reverse=True):
-                if pattern.id not in seen_ids:
+            for pattern in sorted(relevant_patterns,
+                                key=lambda x: (x.discovered_at, x.confidence),
+                                reverse=True):  # Newest and most confident first
+                if pattern.id not in seen_ids and pattern.superseded_by is None:
                     unique_patterns.append(pattern)
                     seen_ids.add(pattern.id)
 
-            return unique_patterns[:10]  # Limit to top 10 most relevant
+            return unique_patterns[:10]  # Limit to top 10 most recent and relevant
 
         except Exception as e:
             logger.error(f"Error getting relevant patterns for {agent_id}: {str(e)}")

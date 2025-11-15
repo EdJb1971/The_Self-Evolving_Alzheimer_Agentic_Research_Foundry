@@ -21,6 +21,7 @@ class LearningEngine:
         self.max_pattern_age_days = 30
         self.knowledge_base_url = os.getenv("KNOWLEDGE_BASE_URL", "http://localhost:8006")
         self.knowledge_api_key = os.getenv("KNOWLEDGE_API_KEY", "test_knowledge_key_123")
+        self.progression_tracker = KnowledgeProgressionTracker()
 
     async def analyze_performance(self, performance_id: int, db: Session):
         """Analyze agent performance to extract learning patterns"""
@@ -30,11 +31,22 @@ class LearningEngine:
                 logger.warning(f"Performance record {performance_id} not found")
                 return
 
+            # Check knowledge progression before extracting new patterns
+            if not self.progression_tracker.check_forward_progression(performance, db):
+                logger.info(f"No forward progression detected for {performance.agent_id}, skipping pattern extraction")
+                return
+
             # Extract patterns from performance data
             patterns = self._extract_patterns_from_performance(performance)
 
-            # Validate and store patterns
+            # Validate patterns against progression requirements
+            validated_patterns = []
             for pattern_data in patterns:
+                if self.progression_tracker.validate_pattern_progression(pattern_data, performance, db):
+                    validated_patterns.append(pattern_data)
+
+            # Store validated patterns
+            for pattern_data in validated_patterns:
                 if pattern_data['confidence'] >= self.min_pattern_confidence:
                     pattern = schemas.LearningPatternCreate(
                         pattern_type=pattern_data['type'],
@@ -47,7 +59,11 @@ class LearningEngine:
                         related_patterns=self._find_related_patterns(pattern_data, db)
                     )
                     crud.create_learning_pattern(db, pattern)
-                    logger.info(f"Extracted pattern: {pattern_data['type']} with confidence {pattern_data['confidence']}")
+
+                    # Update progression tracker
+                    self.progression_tracker.record_progression(pattern_data, performance, db)
+
+                    logger.info(f"Extracted progressive pattern: {pattern_data['type']} with confidence {pattern_data['confidence']}")
 
                     # Push high-confidence patterns to knowledge base for RAG
                     if pattern_data['confidence'] >= 0.8:
@@ -385,3 +401,141 @@ class LearningEngine:
 
         except Exception as e:
             logger.error(f"Error pushing pattern to knowledge base: {str(e)}")
+
+
+class KnowledgeProgressionTracker:
+    """Ensures irreversible forward progression of learned knowledge"""
+
+    def __init__(self):
+        self.min_progression_threshold = 0.05  # 5% improvement required
+        self.max_regression_penalty = 0.1  # Maximum allowed regression before blocking
+
+    def check_forward_progression(self, performance: models.AgentPerformance, db: Session) -> bool:
+        """Check if new performance shows forward progression"""
+        try:
+            # Get recent performances for same agent and task type
+            recent_performances = crud.get_recent_performances_by_agent_and_task(
+                db, performance.agent_id, performance.task_type, limit=10
+            )
+
+            if not recent_performances:
+                return True  # First performance, allow it
+
+            # Calculate progression metrics
+            avg_success_rate = np.mean([p.success_rate for p in recent_performances])
+            avg_execution_time = np.mean([p.execution_time for p in recent_performances])
+
+            # Check for improvement in key metrics
+            success_improvement = performance.success_rate - avg_success_rate
+            time_improvement = (avg_execution_time - performance.execution_time) / avg_execution_time if avg_execution_time > 0 else 0
+
+            # Require at least one metric to show significant improvement
+            has_progression = (
+                success_improvement >= self.min_progression_threshold or
+                time_improvement >= self.min_progression_threshold
+            )
+
+            # Check for regression (significant decline)
+            has_regression = (
+                success_improvement < -self.max_regression_penalty or
+                time_improvement < -self.max_regression_penalty
+            )
+
+            if has_regression:
+                logger.warning(f"Performance regression detected for agent {performance.agent_id}: "
+                             f"success {success_improvement:.3f}, time {time_improvement:.3f}")
+                return False
+
+            if not has_progression:
+                logger.info(f"No significant progression detected for agent {performance.agent_id}")
+                return False
+
+            logger.info(f"Forward progression confirmed for agent {performance.agent_id}: "
+                       f"success +{success_improvement:.3f}, time +{time_improvement:.3f}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error checking forward progression: {str(e)}")
+            return False  # Conservative approach - block if uncertain
+
+    def validate_pattern_progression(self, pattern_data: Dict[str, Any],
+                                   performance: models.AgentPerformance, db: Session) -> bool:
+        """Validate that a pattern represents forward progression"""
+        try:
+            # Get existing patterns of same type and domain
+            existing_patterns = crud.get_patterns_by_type_and_domain(
+                db, pattern_data['type'], self._infer_domain_from_pattern(pattern_data)
+            )
+
+            if not existing_patterns:
+                return True  # First pattern of this type, allow it
+
+            # Check if new pattern shows improvement over existing ones
+            max_existing_confidence = max(p.confidence for p in existing_patterns)
+
+            # New pattern must be significantly better or different
+            confidence_improvement = pattern_data['confidence'] - max_existing_confidence
+
+            # Allow if confidence is much higher or if it's a different pattern type
+            if confidence_improvement >= self.min_progression_threshold:
+                logger.info(f"Pattern progression validated: {pattern_data['type']} "
+                           f"confidence +{confidence_improvement:.3f}")
+                return True
+
+            # Check for pattern novelty (different data structure)
+            if self._is_novel_pattern(pattern_data, existing_patterns):
+                logger.info(f"Novel pattern validated: {pattern_data['type']}")
+                return True
+
+            logger.info(f"Pattern does not show sufficient progression: {pattern_data['type']}")
+            return False
+
+        except Exception as e:
+            logger.error(f"Error validating pattern progression: {str(e)}")
+            return False
+
+    def record_progression(self, pattern_data: Dict[str, Any],
+                          performance: models.AgentPerformance, db: Session):
+        """Record successful progression for monitoring"""
+        try:
+            # Store progression metrics for future reference
+            progression_record = {
+                "agent_id": performance.agent_id,
+                "task_type": performance.task_type,
+                "pattern_type": pattern_data['type'],
+                "confidence": pattern_data['confidence'],
+                "success_rate": performance.success_rate,
+                "execution_time": performance.execution_time,
+                "recorded_at": datetime.utcnow().isoformat(),
+                "progression_type": "pattern_extraction"
+            }
+
+            # Could store this in a separate table or log for monitoring
+            logger.info(f"Progression recorded: {progression_record}")
+
+        except Exception as e:
+            logger.error(f"Error recording progression: {str(e)}")
+
+    def _infer_domain_from_pattern(self, pattern_data: Dict[str, Any]) -> str:
+        """Infer domain from pattern data"""
+        if 'task_type' in pattern_data.get('data', {}):
+            return pattern_data['data']['task_type']
+        return 'general'
+
+    def _is_novel_pattern(self, new_pattern: Dict[str, Any],
+                         existing_patterns: List[models.LearningPattern]) -> bool:
+        """Check if pattern represents novel knowledge"""
+        try:
+            # Simple novelty check based on data structure differences
+            new_data_keys = set(new_pattern.get('data', {}).keys())
+
+            for existing in existing_patterns:
+                existing_data_keys = set(existing.pattern_data.keys())
+                # If data structures are significantly different, consider novel
+                if len(new_data_keys - existing_data_keys) > 2:
+                    return True
+
+            return False
+
+        except Exception:
+            return False
