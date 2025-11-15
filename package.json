@@ -1,8 +1,23 @@
 {
   "name": "alznexus-agentic-autonomy-platform",
   "version": "1.0.0",
-  "description": "",
+  "description": "A self-evolving agentic research foundry for Alzheimer's disease research using federated data and multi-agent collaboration",
   "main": "src/backend/alznexus_adworkbench_proxy/main.py",
+  "author": "Ed Bentley <ed.j.bentley@gmail.com>",
+  "license": "AGPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/EdJb1971/The_Self-Evolving_Alzheimer_Agentic_Research_Foundry.git"
+  },
+  "keywords": [
+    "alzheimer",
+    "ai",
+    "agentic",
+    "research",
+    "federated-learning",
+    "healthcare",
+    "machine-learning"
+  ],
   "scripts": {
     "start": "node src/backend/alznexus_adworkbench_proxy/main.py"
   },

@@ -237,8 +237,14 @@ We welcome contributions to AlzNexus! Please refer to our `CONTRIBUTING.md` (to 
 
 ## License
 
-This project is licensed under the MIT License and Apache License 2.0. See the `LICENSE` file for details.
+This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). See the `LICENSE` file for details.
+
+The AGPL-3.0 license ensures that:
+- All modifications to the software must be made available to users
+- Network usage of the software requires source code availability
+- Commercial use is permitted but must comply with copyleft requirements
+- The license promotes collaboration and transparency in AI research
 
 ## Contact
 
-For questions or support, please open an issue on the GitHub repository or contact [your-email@example.com].
+For questions or support, please open an issue on the GitHub repository or contact [ed.j.bentley@gmail.com].
