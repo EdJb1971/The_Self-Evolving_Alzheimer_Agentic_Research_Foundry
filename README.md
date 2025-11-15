@@ -48,7 +48,7 @@ AlzNexus is engineered with a comprehensive set of features to enable its autono
 *   **Centralized Audit Logging Service/Client:** Ensures consistent, secure, and maintainable audit trail entries across all microservices.
 
 ### Open Source & Public Good
-*   **100% Open-Source:** The entire platform is released under an MIT/Apache license from day one.
+*   **100% Open-Source:** AGPL V3
 *   **Model Weights/API Access:** Fine-tuned model weights are released or made accessible via API to ensure transparency and reusability.
 *   **Zero Proprietary Lock-in:** Designed to avoid proprietary software components or vendor lock-in.
 
