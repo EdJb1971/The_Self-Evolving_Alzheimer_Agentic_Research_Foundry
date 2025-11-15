@@ -100,7 +100,7 @@ AlzNexus employs a robust microservices-oriented architecture designed for long-
 - **Data Privacy:** Added basic differential privacy with Gaussian noise to numerical data.
 - **Scalability:** Configured horizontal scaling in Docker Compose (3 orchestrator replicas, 5 worker replicas).
 
-### ✅ Completed (Phase 5: Frontend Integration)
+### ✅ Completed (Phase 5.1: Frontend Integration)
 - **Comprehensive UI**: Full frontend interface with all backend functionality accessible through professional React components
 - **Dashboard**: System overview with health monitoring, service metrics, registered agents display, and quick action buttons
 - **Agent Registry**: View and manage registered agents with detailed capabilities display and modal dialogs
@@ -111,85 +111,214 @@ AlzNexus employs a robust microservices-oriented architecture designed for long-
 - **Settings & Configuration**: API key management, theme selection, notification preferences, and import/export functionality
 - **Professional UI**: Responsive design with Tailwind CSS, consistent error handling, loading states, and user feedback
 
-### 🔄 Next Steps (Phase 5.2-5.3: CI/CD and Final Validation)
-- **CI/CD Setup**: GitHub Actions for automated testing and deployment
-- **Production Deployment**: Docker Compose production configuration
-- **Final Validation**: End-to-end testing and documentation completion
+### ✅ Completed (Phase 5.2: Backend Service Setup)
+- **Environment Configuration**: Complete `.env` file setup for all backend services with test configurations
+- **Service Dependencies**: Fixed environment variable loading order across all services
+- **Local Development**: Working backend services that can run locally without Docker for development
+- **Database Setup**: SQLite configurations for testing, PostgreSQL-ready for production
+- **Service Integration**: All backend services properly configured and tested for local execution
 
 For detailed progress and remaining work, see `architecture.md`.
 *   **HTTP Client:** Axios (Frontend), Requests (Backend)
 
 ## How to Set Up & Run
 
-This guide will walk you through setting up and running the AlzNexus platform locally using Docker Compose.
+This guide provides two setup options: **Local Development** (recommended for development) and **Docker Deployment** (for production-like environments).
 
 ### Prerequisites
 Before you begin, ensure you have the following installed:
-*   **Docker Desktop:** Includes Docker Engine and Docker Compose. [Install Docker Desktop](https://www.docker.com/products/docker-desktop)
-*   **Python 3.9+:** For backend development and scripting.
-*   **Node.js & npm (or yarn):** For frontend development.
+*   **Python 3.13+:** For backend development and virtual environment management.
+*   **Node.js & npm:** For frontend development.
+*   **Redis:** For caching and Celery broker (install via `winget install Redis` on Windows or use Docker).
+*   **Docker Desktop:** Optional, for containerized deployment. [Install Docker Desktop](https://www.docker.com/products/docker-desktop)
 
-### 1. Clone the Repository
+### Option 1: Local Development Setup (Recommended)
+
+#### 1. Clone and Setup Virtual Environment
 ```bash
-git clone https://github.com/your-org/alznexus.git # Replace with actual repository URL
-cd alznexus
+git clone https://github.com/EdJb1971/The_Self-Evolving_Alzheimer_Agentic_Research_Foundry.git
+cd The_Self-Evolving_Alzheimer_Agentic_Research_Foundry
+
+# Create and activate virtual environment
+python -m venv alznexus_env
+& ".\alznexus_env\Scripts\activate"
 ```
 
-### 2. Environment Variables
-Each service requires specific environment variables for configuration (database connections, API keys, Celery/Redis URLs). Create `.env` files in the root of each service directory (e.g., `src/backend/alznexus_orchestrator/.env`, `src/backend/alznexus_adworkbench_proxy/.env`, etc.).
+#### 2. Install Dependencies
+```bash
+# Install Python dependencies
+pip install -r src/backend/alznexus_orchestrator/requirements.txt
+pip install -r src/backend/alznexus_agent_registry/requirements.txt
+pip install -r src/backend/alznexus_audit_trail/requirements.txt
+pip install -r src/backend/alznexus_llm_service/requirements.txt
+pip install -r src/backend/alznexus_adworkbench_proxy/requirements.txt
 
-**Example `.env` content for `src/backend/alznexus_orchestrator/.env`:**
+# Install Node.js dependencies
+cd src/frontend/alznexus_ui
+npm install
+cd ../../..
+```
+
+#### 3. Environment Configuration
+Each backend service requires a `.env` file in its directory. The following `.env` files have been pre-configured for local development with SQLite databases:
+
+**`src/backend/alznexus_orchestrator/.env`:**
 ```env
-ORCHESTRATOR_DATABASE_URL="postgresql://user:password@db:5432/alznexus_db"
-ORCHESTRATOR_CELERY_BROKER_URL="amqp://guest:guest@rabbitmq:5672//"
-ORCHESTRATOR_CELERY_RESULT_BACKEND="redis://redis:6379/0"
-ORCHESTRATOR_API_KEY="your_orchestrator_api_key"
-ORCHESTRATOR_REDIS_URL="redis://redis:6379"
-ADWORKBENCH_PROXY_URL="http://alznexus_adworkbench_proxy:8000"
-ADWORKBENCH_API_KEY="your_adworkbench_api_key"
-AUDIT_TRAIL_URL="http://alznexus_audit_trail:8000"
-AUDIT_API_KEY="your_audit_api_key"
-AGENT_SERVICE_BASE_URL="http://alznexus_biomarker_hunter_agent:8000" # Example, will be dynamic with registry
-AGENT_API_KEY="your_agent_api_key"
+# Orchestrator Service Environment Variables
+ORCHESTRATOR_DATABASE_URL=sqlite:///./test_orchestrator.db
+ORCHESTRATOR_CELERY_BROKER_URL=redis://localhost:6379/0
+ORCHESTRATOR_CELERY_RESULT_BACKEND=redis://localhost:6379/0
+ORCHESTRATOR_API_KEY=test_orchestrator_key_123
+ORCHESTRATOR_REDIS_URL=redis://localhost:6379
+ADWORKBENCH_PROXY_URL=http://localhost:8002
+ADWORKBENCH_API_KEY=test_adworkbench_key
+AUDIT_TRAIL_URL=http://localhost:8003
+AUDIT_API_KEY=test_audit_key
+AGENT_SERVICE_BASE_URL=http://localhost:8002
+AGENT_API_KEY=test_agent_key
+AGENT_REGISTRY_URL=http://localhost:8004
+AGENT_REGISTRY_API_KEY=test_agent_registry_key
+LLM_SERVICE_URL=http://localhost:8005
+LLM_API_KEY=test_llm_key
 ```
 
-**Important:**
-*   Replace `user:password` with strong credentials for production.
-*   Ensure `your_orchestrator_api_key`, `your_adworkbench_api_key`, `your_audit_api_key`, `your_agent_api_key`, and `your_registry_api_key` are unique and strong secrets.
-*   For sub-agents, `AGENT_EXTERNAL_API_ENDPOINT` should be set to the externally accessible URL of the agent (e.g., `http://localhost:8000` if running locally, or the Docker service name if communicating within the Docker network).
-*   The `AGENT_REGISTRY_URL` and `AGENT_REGISTRY_API_KEY` are crucial for agent self-registration.
+**`src/backend/alznexus_agent_registry/.env`:**
+```env
+# Agent Registry Service Environment Variables
+REGISTRY_DATABASE_URL=sqlite:///./test_registry.db
+REGISTRY_CELERY_BROKER_URL=redis://localhost:6379/0
+REGISTRY_CELERY_RESULT_BACKEND=redis://localhost:6379/0
+REGISTRY_API_KEY=test_registry_key
+REGISTRY_REDIS_URL=redis://localhost:6379
+AUDIT_TRAIL_URL=http://localhost:8003
+AUDIT_API_KEY=test_audit_key
+```
 
-### 3. Build and Run Docker Containers
-Navigate to the root directory of the project (where `docker-compose.yml` is located) and run:
+**`src/backend/alznexus_audit_trail/.env`:**
+```env
+# Audit Trail Service Environment Variables
+AUDIT_DATABASE_URL=sqlite:///./test_audit.db
+AUDIT_CELERY_BROKER_URL=redis://localhost:6379/0
+AUDIT_CELERY_RESULT_BACKEND=redis://localhost:6379/0
+AUDIT_API_KEY=test_audit_key
+AUDIT_REDIS_URL=redis://localhost:6379
+```
 
+**`src/backend/alznexus_llm_service/.env`:**
+```env
+# LLM Service Environment Variables
+LLM_DATABASE_URL=sqlite:///./test_llm.db
+LLM_CELERY_BROKER_URL=redis://localhost:6379/0
+LLM_CELERY_RESULT_BACKEND=redis://localhost:6379/0
+LLM_API_KEY=test_llm_key
+LLM_REDIS_URL=redis://localhost:6379
+AUDIT_TRAIL_URL=http://localhost:8003
+AUDIT_API_KEY=test_audit_key
+```
+
+**`src/backend/alznexus_adworkbench_proxy/.env`:**
+```env
+# AdWorkbench Proxy Service Environment Variables
+DATABASE_URL=sqlite:///./test_adworkbench.db
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/0
+API_KEY=test_adworkbench_key
+REDIS_URL=redis://localhost:6379
+ADWORKBENCH_BASE_URL=https://adworkbench.example.com/api
+ADWORKBENCH_API_KEY=test_adworkbench_key
+```
+
+#### 4. Start Redis Server
+Ensure Redis is running locally:
+```bash
+# If using Docker
+docker run -d -p 6379:6379 redis:alpine
+
+# Or if installed locally
+redis-server
+```
+
+#### 5. Start Backend Services
+Open separate terminals and activate the virtual environment in each, then start services:
+
+**Terminal 1 - Orchestrator Service (Port 8000):**
+```bash
+& ".\alznexus_env\Scripts\activate"
+cd src/backend
+uvicorn alznexus_orchestrator.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+**Terminal 2 - Agent Registry Service (Port 8004):**
+```bash
+& ".\alznexus_env\Scripts\activate"
+cd src/backend
+uvicorn alznexus_agent_registry.main:app --host 0.0.0.0 --port 8004 --reload
+```
+
+**Terminal 3 - Audit Trail Service (Port 8003):**
+```bash
+& ".\alznexus_env\Scripts\activate"
+cd src/backend
+uvicorn alznexus_audit_trail.main:app --host 0.0.0.0 --port 8003 --reload
+```
+
+**Terminal 4 - LLM Service (Port 8005):**
+```bash
+& ".\alznexus_env\Scripts\activate"
+cd src/backend
+uvicorn alznexus_llm_service.main:app --host 0.0.0.0 --port 8005 --reload
+```
+
+**Terminal 5 - AdWorkbench Proxy Service (Port 8002):**
+```bash
+& ".\alznexus_env\Scripts\activate"
+cd src/backend
+uvicorn alznexus_adworkbench_proxy.main:app --host 0.0.0.0 --port 8002 --reload
+```
+
+#### 6. Start Frontend
+**Terminal 6 - Frontend (Port 3000):**
+```bash
+cd src/frontend/alznexus_ui
+npm run dev
+```
+
+### Option 2: Docker Deployment (Production-like)
+
+### Option 2: Docker Deployment (Production-like)
+
+#### 1. Clone the Repository
+```bash
+git clone https://github.com/EdJb1971/The_Self-Evolving_Alzheimer_Agentic_Research_Foundry.git
+cd The_Self-Evolving_Alzheimer_Agentic_Research_Foundry
+```
+
+#### 2. Environment Variables
+For Docker deployment, update the `.env` files to use Docker service names instead of `localhost`:
+
+**Example updates for `src/backend/alznexus_orchestrator/.env`:**
+```env
+# Update these URLs to use Docker service names
+ADWORKBENCH_PROXY_URL=http://alznexus_adworkbench_proxy:8000
+AUDIT_TRAIL_URL=http://alznexus_audit_trail:8000
+AGENT_REGISTRY_URL=http://alznexus_agent_registry:8000
+LLM_SERVICE_URL=http://alznexus_llm_service:8000
+# Update database URLs for PostgreSQL
+ORCHESTRATOR_DATABASE_URL=postgresql://user:password@db:5432/alznexus_db
+```
+
+#### 3. Build and Run Docker Containers
 ```bash
 docker-compose build
 docker-compose up -d
 ```
 
-This command will:
-*   Build Docker images for all services (backend, frontend, database, message queue, redis).
-*   Start all services in detached mode (`-d`).
-
-Wait a few minutes for all services, especially the databases, to initialize.
-
-### 4. Initialize Databases (Manual Step for Development)
-For development, you might need to manually create tables for each service. In a production environment, you would use database migration tools like Alembic.
-
-Access the shell of each backend service container and run the `create_tables.py` script (if provided, or manually execute `Base.metadata.create_all(bind=engine)` in a Python shell within each container).
-
-Example for Orchestrator:
-```bash
-docker exec -it alznexus_orchestrator_1 bash
-python -c "from src.backend.alznexus_orchestrator.database import Base, engine; Base.metadata.create_all(bind=engine)"
-exit
-```
-Repeat for `alznexus_adworkbench_proxy`, `alznexus_audit_trail`, `alznexus_agent_registry`, and each sub-agent (e.g., `alznexus_biomarker_hunter_agent`).
+Wait for services to initialize, then access the platform.
 
 ### 5. Access the Platform
 Once all services are up and databases are initialized:
 
-*   **Frontend Application:** Access the complete AlzNexus UI in your browser at `http://localhost:5173` (or the port configured in `vite.config.ts`).
+*   **Frontend Application:** Access the complete AlzNexus UI in your browser at `http://localhost:3000` (Vite dev server).
     *   **Dashboard**: System overview with health monitoring and quick actions
     *   **Submit Query**: Submit research queries and monitor task progress
     *   **Agent Registry**: View and manage all registered agents
@@ -201,17 +330,16 @@ Once all services are up and databases are initialized:
     *   **Settings**: Configure API keys, preferences, and system settings
 
 *   **Backend API Endpoints (Swagger UI):**
-    *   **AD Workbench API Proxy:** `http://localhost:8000/docs`
-    *   **Master Orchestrator:** `http://localhost:8001/docs`
-    *   **Biomarker Hunter Agent:** `http://localhost:8002/docs`
-    *   **Audit Trail Service:** `http://localhost:8003/docs`
-    *   **Agent Registry Service:** `http://localhost:8004/docs`
-    *   *(Other agents will have similar URLs, adjust port as per `docker-compose.yml`)*
+    *   **Orchestrator:** `http://localhost:8000/docs`
+    *   **Agent Registry:** `http://localhost:8004/docs`
+    *   **Audit Trail:** `http://localhost:8003/docs`
+    *   **LLM Service:** `http://localhost:8005/docs`
+    *   **AdWorkbench Proxy:** `http://localhost:8002/docs`
 
     You can interact with the APIs directly using tools like `curl` or Postman, or through the Swagger UI.
 
 ### 6. Basic Usage Example (via Frontend)
-1.  Open `http://localhost:5173` to access the complete AlzNexus platform.
+1.  Open `http://localhost:3000` to access the complete AlzNexus platform.
 2.  **Dashboard**: View system health, active tasks, and registered agents overview.
 3.  **Submit Query**: Navigate to "Submit Query", enter a research query like "Identify novel early-stage biomarkers for Alzheimer's disease," and click submit.
 4.  **Monitor Progress**: Use "Task Status" to track orchestrator task progress, or "Orchestrator" for advanced controls and real-time monitoring.
@@ -223,8 +351,13 @@ Once all services are up and databases are initialized:
 10. **Configuration**: Set up API keys and preferences in the "Settings" section.
 
 ### 7. Stopping the Platform
-To stop all running Docker containers and remove their networks and volumes:
+To stop all running services:
 
+**For Local Development:**
+- Press `Ctrl+C` in each terminal to stop individual services
+- Or use task manager to end Python processes
+
+**For Docker Deployment:**
 ```bash
 docker-compose down -v
 ```

@@ -1,4 +1,11 @@
 import os
+from dotenv import load_dotenv
+from pathlib import Path
+
+# Load environment variables from .env file in the same directory as this file
+env_path = Path(__file__).parent / ".env"
+load_dotenv(dotenv_path=env_path)
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 

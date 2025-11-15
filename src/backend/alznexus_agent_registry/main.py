@@ -1,4 +1,18 @@
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file FIRST
+load_dotenv()
+
+from fastapi import FastAPI, Depends, HTTPException, Security, Request, Response
+from fastapi.security import APIKeyHeader
+from sqlalchemy.orm import Session
+from . import models, schemas, crud
+from .database import engine, get_db, Base
+from fastapi_limiter import FastAPILimiter
+from fastapi_limiter.depends import RateLimiter
+import redis.asyncio as redis
+
 from fastapi import FastAPI, Depends, HTTPException, Security, Request, Response
 from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
