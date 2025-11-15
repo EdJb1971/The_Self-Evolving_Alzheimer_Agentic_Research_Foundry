@@ -5,6 +5,7 @@ AlzNexus is a self-evolving agentic research foundry designed to accelerate Alzh
 
 ## Technology Stack
 - **Backend**: Python 3.x, FastAPI (REST APIs), Celery (asynchronous task processing), SQLAlchemy (ORM), PostgreSQL (database), Redis (caching/rate limiting), requests (HTTP client)
+- **Machine Learning & Statistics**: PyMC3 (Bayesian inference), TensorFlow Probability (probabilistic ML), DeepXDE (physics-informed neural networks), scikit-learn (traditional ML), SciPy/NumPy (scientific computing), ArviZ (Bayesian analysis)
 - **Frontend**: React 18, TypeScript, Vite (build tool), Tailwind CSS (styling), Axios (HTTP client), React Router (routing)
 - **Infrastructure**: Microservices architecture, Docker (implied for deployment), API key authentication, rate limiting via FastAPILimiter
 - **External Integrations**: AD Workbench (federated data source), Large Language Models (LLM) via abstraction layer (OpenAI GPT, Google Gemini - swappable)
@@ -36,6 +37,7 @@ AlzNexus is a self-evolving agentic research foundry designed to accelerate Alzh
 - **alznexus_llm_service**: Ethical abstraction layer for LLM interactions, including prompt sanitization, injection detection, response moderation, and enterprise-grade retry logic with jitter.
 - **alznexus_knowledge_base**: Persistent vector database for semantic storage, intelligent RAG with token awareness, and version-controlled knowledge updates.
 - **alznexus_statistical_engine**: Comprehensive statistical analysis service providing correlation analysis, hypothesis testing, effect sizes, power analysis, and data quality assessment.
+- **alznexus_uncertainty_service**: Advanced uncertainty quantification and error bounds calculation for scientific research outputs. Implements Bayesian neural networks (PyMC3), Monte Carlo dropout ensembles (TensorFlow), physics-informed neural networks (DeepXDE) for Alzheimer's disease modeling, and clinical risk assessment frameworks. Provides publication-ready confidence intervals, false positive rate estimation, and decision confidence scoring for all research predictions.
 - **alznexus_reproducibility_service**: Ensures scientific reproducibility through random seed management, data provenance tracking, analysis snapshots, and validation frameworks.
 
 ### Frontend Application (alznexus_ui)

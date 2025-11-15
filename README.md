@@ -62,6 +62,7 @@ AlzNexus employs a robust microservices-oriented architecture designed for long-
 ### System Components:
 *   **Master Orchestrator Service (COMP-001):** The core intelligence, responsible for high-level goal setting, sub-agent coordination, multi-agent debate resolution, and initiating autonomous research cycles. It interacts with the Agent Registry, Audit Trail, and dispatches tasks to sub-agents.
 *   **Statistical Engine Service (COMP-002):** A comprehensive statistical validation and analysis service providing rigorous mathematical validation for all agent-generated insights. Implements correlation analysis, hypothesis testing, effect size calculations, power analysis, and data quality assessment to ensure scientific rigor.
+*   **Uncertainty Service (COMP-002.2):** Advanced uncertainty quantification and error bounds calculation for scientific research outputs. Implements Bayesian neural networks, Monte Carlo methods, physics-informed neural networks, and clinical risk assessment to provide publication-ready confidence intervals and decision confidence scoring.
 *   **Reproducibility Service (COMP-002.1):** A scientific reproducibility framework ensuring all research outputs are reproducible and version-controlled. Manages random seeds, data provenance tracking, analysis snapshots, and reproducibility validation for publication-quality research.
 *   **Specialized Sub-Agent Services (COMP-003, COMP-014-017, etc.):** A collection of distinct microservices (e.g., Biomarker Hunter, Pathway Modeler, Trial Optimizer, Drug Screener, Data Harmonizer, Hypothesis Validator, Literature Bridger, Collaboration Matchmaker). Each agent possesses specialized domain expertise, implements ReAct/Tool-use loops, reflection, and self-critique, and registers itself with the Agent Registry.
 *   **AD Workbench API Proxy Service (COMP-004):** A critical gateway for all interactions with the AD Workbench. It centralizes API calls, enforces secure federated queries, handles authentication/authorization, and ensures no raw patient data leaves the secure environment.
@@ -86,6 +87,7 @@ AlzNexus employs a robust microservices-oriented architecture designed for long-
 *   **Fault Tolerance:** Service isolation, automatic retry logic, health monitoring, comprehensive logging
 *   **Knowledge Base:** ChromaDB vector database with intelligent RAG and token-aware context retrieval
 *   **Statistical Analysis:** SciPy, StatsModels, Scikit-learn for rigorous scientific validation
+*   **Uncertainty Quantification:** PyMC3 (Bayesian inference), TensorFlow Probability (probabilistic ML), DeepXDE (physics-informed neural networks), ArviZ (Bayesian analysis)
 *   **Literature Integration:** PubMed API with citation analysis and biological plausibility validation
 
 ## Current Development Status
@@ -126,6 +128,17 @@ AlzNexus employs a robust microservices-oriented architecture designed for long-
 - **Hypothesis Validation Scoring:** Literature support calibration and contradiction detection
 - **Expert Review Integration:** Structured validation workflows with confidence calibration
 - **Scientific Literature Synthesis:** Automated connection synthesis between disparate research areas
+
+### ✅ Completed (Scientific Phase 4: Uncertainty Quantification & Error Bounds)
+- **Uncertainty Service:** Complete FastAPI microservice with advanced uncertainty quantification
+- **Bayesian Neural Networks:** PyMC3 implementation with probabilistic uncertainty estimation
+- **Monte Carlo Dropout:** TensorFlow ensemble methods with dropout-based uncertainty
+- **Physics-Informed Neural Networks:** DeepXDE PINNs for Alzheimer's disease modeling with biological constraints
+- **Clinical Risk Assessment:** Comprehensive significance testing and false positive analysis
+- **Self-Evolving PINN Framework:** Continuous learning from new data and validated research findings
+- **Publication-Ready Uncertainty:** All predictions include 95% confidence bounds for journal submission
+- **Clinical Decision Support:** Uncertainty estimates enable evidence-based medical recommendations
+- **Scientific Rigor:** Meets FDA/EMA standards for uncertainty quantification in research claims
 
 ### ✅ Completed (Production Hardening: Enterprise Error Handling & Fault Tolerance)
 - **Exponential Backoff with Jitter:** Prevents thundering herd problems in high-concurrency LLM service scenarios
