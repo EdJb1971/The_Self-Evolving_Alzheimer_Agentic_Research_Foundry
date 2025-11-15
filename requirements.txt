@@ -1,0 +1,44 @@
+# Core Python dependencies for AlzNexus platform
+fastapi==0.104.1
+uvicorn==0.24.0
+sqlalchemy==2.0.23
+alembic==1.12.1
+pydantic==2.5.0
+pydantic-settings==2.1.0
+python-dotenv==1.0.0
+requests==2.31.0
+httpx==0.25.2
+
+# Async processing
+celery==5.3.4
+redis==5.0.1
+
+# Data processing and ML
+numpy==1.24.3
+pandas==2.1.4
+scikit-learn==1.3.2
+scipy==1.11.3
+statsmodels==0.14.0
+matplotlib==3.8.0
+seaborn==0.12.2
+
+# Vector database and embeddings
+chromadb==0.4.18
+sentence-transformers==2.2.2
+faiss-cpu==1.7.4
+
+# LLM and AI
+openai==1.3.7
+tiktoken==0.5.2
+langchain==0.0.354
+langchain-community==0.0.8
+
+# Database drivers
+psycopg2-binary==2.9.9
+
+# Testing and development
+pytest==7.4.3
+pytest-asyncio==0.21.1
+
+# Additional utilities
+python-multipart==0.0.6

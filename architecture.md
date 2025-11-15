@@ -8,6 +8,8 @@ AlzNexus is a self-evolving agentic research foundry designed to accelerate Alzh
 - **Frontend**: React 18, TypeScript, Vite (build tool), Tailwind CSS (styling), Axios (HTTP client), React Router (routing)
 - **Infrastructure**: Microservices architecture, Docker (implied for deployment), API key authentication, rate limiting via FastAPILimiter
 - **External Integrations**: AD Workbench (federated data source), Large Language Models (LLM) via abstraction layer (OpenAI GPT, Google Gemini - swappable)
+- **Error Handling**: Enterprise-grade retry logic with exponential backoff + jitter to prevent thundering herd problems
+- **Fault Tolerance**: Graceful degradation - individual agent failures don't invalidate entire research operations
 
 ## System Components
 
@@ -17,7 +19,7 @@ AlzNexus is a self-evolving agentic research foundry designed to accelerate Alzh
 - **alznexus_orchestrator**: Central coordinator that sets research goals, initiates daily data scans, assigns tasks to agents, resolves inter-agent debates, and performs self-correction based on performance metrics and audit logs.
 
 #### Specialized Agents (alznexus_agents/)
-- **biomarker_hunter_agent**: Identifies novel biomarkers for early AD progression through data analysis and AD Workbench queries.
+- **biomarker_hunter_agent**: Identifies novel biomarkers for early AD progression through data analysis and AD Workbench queries with LLM-powered insights.
 - **collaboration_matchmaker_agent**: Suggests optimal multi-agent teams or external experts for complex research problems.
 - **data_harmonizer_agent**: Aligns schemas from disparate studies to ensure data consistency and interoperability.
 - **drug_screener_agent**: Screens potential drug candidates against disease pathways and target profiles.
@@ -31,7 +33,10 @@ AlzNexus is a self-evolving agentic research foundry designed to accelerate Alzh
 - **alznexus_agent_registry**: Manages dynamic registration and discovery of sub-agents with capabilities and API endpoints.
 - **alznexus_audit_trail**: Immutable log of all system operations, decisions, and agent actions for traceability and analysis.
 - **alznexus_bias_detection_service**: Continuously analyzes data inputs, agent reasoning, and outputs for potential biases using LLM-powered detection.
-- **alznexus_llm_service**: Ethical abstraction layer for LLM interactions, including prompt sanitization, injection detection, and response moderation.
+- **alznexus_llm_service**: Ethical abstraction layer for LLM interactions, including prompt sanitization, injection detection, response moderation, and enterprise-grade retry logic with jitter.
+- **alznexus_knowledge_base**: Persistent vector database for semantic storage, intelligent RAG with token awareness, and version-controlled knowledge updates.
+- **alznexus_statistical_engine**: Comprehensive statistical analysis service providing correlation analysis, hypothesis testing, effect sizes, power analysis, and data quality assessment.
+- **alznexus_reproducibility_service**: Ensures scientific reproducibility through random seed management, data provenance tracking, analysis snapshots, and validation frameworks.
 
 ### Frontend Application (alznexus_ui)
 - **QuerySubmission**: Interface for users to submit research queries or data requests.

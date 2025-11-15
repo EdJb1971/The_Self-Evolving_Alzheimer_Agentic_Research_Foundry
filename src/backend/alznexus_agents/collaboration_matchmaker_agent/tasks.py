@@ -3,6 +3,7 @@ import json
 import os
 import requests
 import logging
+import random
 from sqlalchemy.orm import Session
 from .celery_app import celery_app
 from .database import SessionLocal
@@ -28,6 +29,18 @@ if not AGENT_REGISTRY_URL or not AGENT_REGISTRY_API_KEY:
 
 logger = logging.getLogger(__name__)
 
+def calculate_backoff_with_jitter(attempt: int, base_delay: float = 1.0, max_delay: float = 60.0, jitter_factor: float = 0.1) -> float:
+    """Calculate exponential backoff delay with jitter to prevent thundering herd."""
+    # Exponential backoff: base_delay * (2 ^ attempt)
+    delay = base_delay * (2 ** attempt)
+
+    # Add jitter: randomize delay by ±jitter_factor
+    jitter = delay * jitter_factor * (2 * random.random() - 1)  # -jitter_factor to +jitter_factor
+    delay_with_jitter = delay + jitter
+
+    # Ensure delay is within reasonable bounds
+    return min(max(delay_with_jitter, 0.1), max_delay)
+
 def log_audit_event(entity_type: str, entity_id: str, event_type: str, description: str, metadata: dict = None):
     headers = {"X-API-Key": AUDIT_API_KEY, "Content-Type": "application/json"}
     payload = {
@@ -46,8 +59,12 @@ def log_audit_event(entity_type: str, entity_id: str, event_type: str, descripti
 
 @celery_app.task(bind=True, name="match_collaboration_task")
 def match_collaboration_task(self, agent_task_id: int):
-    db: Session = SessionLocal()
-    try:
+    max_retries = 3
+    attempt = 0
+    while attempt <= max_retries:
+        try:
+            db: Session = SessionLocal()
+            try:
         db_agent_task = crud.get_agent_task(db, agent_task_id)
         if not db_agent_task:
             raise ValueError(f"Agent task with ID {agent_task_id} not found.")
@@ -236,6 +253,15 @@ def match_collaboration_task(self, agent_task_id: int):
         raise
     finally:
         db.close()
+        except Exception as e:
+            attempt += 1
+            if attempt <= max_retries:
+                delay = calculate_backoff_with_jitter(attempt, base_delay=1.0, jitter_factor=0.3)
+                logger.warning(f"Task {agent_task_id} failed (attempt {attempt}/{max_retries}), retrying in {delay:.2f} seconds: {str(e)}")
+                time.sleep(delay)
+            else:
+                logger.error(f"Task {agent_task_id} failed after {max_retries} attempts: {str(e)}")
+                raise
 
 @celery_app.task(bind=True, name="perform_reflection_task")
 def perform_reflection_task(self, agent_id: str, reflection_metadata: dict):

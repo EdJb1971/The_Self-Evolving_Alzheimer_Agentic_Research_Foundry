@@ -41,6 +41,29 @@ services:
       timeout: 5s
       retries: 5
 
+  alznexus_knowledge_base:
+    build: ./src/backend/alznexus_knowledge_base
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - KNOWLEDGE_DATABASE_URL=sqlite:///./test_knowledge.db
+      - KNOWLEDGE_CELERY_BROKER_URL=redis://redis:6379/0
+      - KNOWLEDGE_CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - KNOWLEDGE_API_KEY=test_knowledge_key_123
+      - KNOWLEDGE_VECTOR_DB_PATH=./chroma_db
+      - KNOWLEDGE_EMBEDDING_MODEL=all-MiniLM-L6-v2
+      - KNOWLEDGE_COLLECTION_NAME=alznexus_knowledge
+    ports:
+      - "8006:8006"
+    volumes:
+      - knowledge_data:/app/chroma_db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   # Example service with horizontal scaling
   # alznexus_orchestrator:
   #   build: ./src/backend/alznexus_orchestrator
@@ -76,3 +99,4 @@ services:
 
 volumes:
   postgres_data:
+  knowledge_data:

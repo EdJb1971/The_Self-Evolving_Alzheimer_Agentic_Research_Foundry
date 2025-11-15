@@ -45,25 +45,26 @@ class LLMToolUseRequest(BaseModel):
             MetadataValidator(metadata=self.metadata)
         return self
 
-class LLMResponse(BaseModel):
+class LLMStructuredRequest(BaseModel):
+    model_name: str = Field(..., description="LLM model to use (gpt-4, gpt-3.5-turbo, gemini-1.5-flash, etc.)")
+    prompt: str = Field(..., description="The prompt to send to the LLM")
+    response_schema: Dict[str, Any] = Field(..., description="JSON schema that the response should conform to")
+    metadata: Optional[Dict[str, Any]] = None
+
+class LLMStructuredResponse(BaseModel):
     model_name: str
-    response_text: str
+    structured_data: Dict[str, Any] = Field(..., description="Parsed and validated structured data")
+    raw_response: str = Field(..., description="Raw response text from LLM")
+    parsing_success: bool = Field(..., description="Whether JSON parsing was successful")
+    parsing_error: Optional[str] = Field(None, description="Error message if parsing failed")
     finish_reason: str
     prompt_tokens: int
     completion_tokens: int
     total_tokens: int
-    detected_bias: bool = False
-    detected_injection: bool = False
-    ethical_flags: Optional[ValidatedMetadata] = None
-    metadata: Optional[ValidatedMetadata] = None
-
-    @model_validator(mode='after')
-    def validate_all_metadata(self) -> 'LLMResponse':
-        if self.metadata is not None:
-            MetadataValidator(metadata=self.metadata)
-        if self.ethical_flags is not None:
-            MetadataValidator(metadata=self.ethical_flags)
-        return self
+    detected_bias: bool
+    detected_injection: bool
+    ethical_flags: Dict[str, bool]
+    metadata: Optional[Dict[str, Any]] = None
 
 class LLMRequestLogCreate(BaseModel):
     model_name: str

@@ -3,6 +3,7 @@ import requests
 import json
 import time
 import logging
+import random
 from sqlalchemy.orm import Session
 from .celery_app import celery_app
 from .database import SessionLocal
@@ -33,6 +34,18 @@ if not LLM_SERVICE_URL or not LLM_API_KEY:
     raise ValueError("LLM_SERVICE_URL or LLM_API_KEY environment variables not set.")
 
 logger = logging.getLogger(__name__)
+
+def calculate_backoff_with_jitter(attempt: int, base_delay: float = 1.0, max_delay: float = 60.0, jitter_factor: float = 0.1) -> float:
+    """Calculate exponential backoff delay with jitter to prevent thundering herd."""
+    # Exponential backoff: base_delay * (2 ^ attempt)
+    delay = base_delay * (2 ** attempt)
+
+    # Add jitter: randomize delay by ±jitter_factor
+    jitter = delay * jitter_factor * (2 * random.random() - 1)  # -jitter_factor to +jitter_factor
+    delay_with_jitter = delay + jitter
+
+    # Ensure delay is within reasonable bounds
+    return min(max(delay_with_jitter, 0.1), max_delay)
 
 # SEC-SPRINT12-001 & CQ-SPRINT12-007: Removed hardcoded KNOWN_AGENT_IDS.
 # In a real system, this would come from a robust agent registry service with authentication.
@@ -327,17 +340,20 @@ def perform_self_correction_task(self, orchestrator_task_id: int):
         reflection_insights = [r['metadata_json'].get('proposed_adjustments', []) for r in recent_reflections if 'metadata_json' in r and r['metadata_json']]
         reflection_summary = {"num_reflections": len(recent_reflections), "insights": reflection_insights}
 
-        # Perform analysis using LLM
+        # Perform analysis using LLM with RAG for learning from past results
         analysis_prompt = f"Analyze the following performance data and agent reflections for self-correction in Alzheimer's research orchestration. Data: {json.dumps(overall_task_summary)}. Reflections: {json.dumps(reflection_summary)}. Propose adaptations and new goals."
         llm_payload = {
             "model_name": "gemini-1.5-flash",
             "prompt": analysis_prompt,
-            "metadata": {"orchestrator_task_id": orchestrator_task_id}
+            "metadata": {"orchestrator_task_id": orchestrator_task_id, "requester_agent": "orchestrator"}
         }
         llm_headers = {"X-API-Key": LLM_API_KEY, "Content-Type": "application/json"}
         
+        # Enable RAG for learning from accumulated knowledge
+        llm_url = f"{LLM_SERVICE_URL}/llm/chat?enable_rag=true"
+        
         llm_response = requests.post(
-            f"{LLM_SERVICE_URL}/llm/chat",
+            llm_url,
             headers=llm_headers,
             json=llm_payload
         )
