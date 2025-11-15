@@ -125,15 +125,98 @@ def bridge_literature_task(self, agent_task_id: int):
                     metadata={"adworkbench_query_id": adworkbench_query_id, "data_summary": raw_data_summary.get("data", [])[:1]}
                 )
 
-                # TODO: CQ-LB-002: Replace with actual literature analysis and synthesis (LLM interaction). The blocking time.sleep() has been removed.
-                literature_connections = {
-                    "topic": db_agent_task.task_description,
-                    "bridged_areas": [
-                        {"area_a": "Neuroinflammation", "area_b": "Gut Microbiome", "connection": "Emerging evidence links gut dysbiosis to neuroinflammatory pathways in AD.", "references": ["PMID:12345", "PMID:67890"]},
-                        {"area_a": "Amyloid Beta", "area_b": "Sleep Disorders", "connection": "Poor sleep quality accelerates amyloid-beta accumulation and impairs clearance.", "references": ["PMID:11223", "PMID:44556"]}
-                    ],
-                    "summary": f"Synthesized connections between {len(raw_data_summary.get('data', []))} literature entries."
+                # CQ-LB-002: Implement actual literature analysis and synthesis using LLM
+                analysis_prompt = f"""Analyze the following scientific literature data and identify meaningful connections between different research areas related to Alzheimer's disease.
+
+Literature Data: {json.dumps(raw_data_summary)}
+
+Task: {db_agent_task.task_description}
+
+Please identify:
+1. Key research areas represented in the data
+2. Potential connections or relationships between these areas
+3. Novel insights that emerge from bridging these areas
+4. Supporting evidence or references
+
+Format your response as a JSON object with the following structure:
+{{
+    "bridged_areas": [
+        {{
+            "area_a": "Research Area 1",
+            "area_b": "Research Area 2", 
+            "connection": "Description of the connection",
+            "references": ["ref1", "ref2"],
+            "strength": "high/medium/low"
+        }}
+    ],
+    "key_insights": ["insight1", "insight2"],
+    "summary": "Overall summary of connections found"
+}}"""
+
+                llm_payload = {
+                    "model_name": "gemini-1.5-flash",
+                    "prompt": analysis_prompt,
+                    "metadata": {"agent_task_id": agent_task_id, "agent": agent_id}
                 }
+                llm_headers = {"X-API-Key": LLM_API_KEY, "Content-Type": "application/json"}
+
+                llm_response = requests.post(
+                    f"{LLM_SERVICE_URL}/llm/structured-output",
+                    headers=llm_headers,
+                    json={
+                        "model_name": "gemini-1.5-flash",
+                        "prompt": analysis_prompt,
+                        "response_format": {
+                            "type": "json_object",
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "bridged_areas": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "area_a": {"type": "string"},
+                                                "area_b": {"type": "string"},
+                                                "connection": {"type": "string"},
+                                                "references": {"type": "array", "items": {"type": "string"}},
+                                                "strength": {"type": "string", "enum": ["high", "medium", "low"]}
+                                            },
+                                            "required": ["area_a", "area_b", "connection"]
+                                        }
+                                    },
+                                    "key_insights": {"type": "array", "items": {"type": "string"}},
+                                    "summary": {"type": "string"}
+                                },
+                                "required": ["bridged_areas", "key_insights", "summary"]
+                            }
+                        },
+                        "metadata": {"agent_task_id": agent_task_id, "agent": agent_id}
+                    }
+                )
+                llm_response.raise_for_status()
+                llm_result = llm_response.json()
+
+                # Parse the structured LLM response
+                try:
+                    literature_analysis = llm_result["structured_output"]
+                    literature_connections = {
+                        "topic": db_agent_task.task_description,
+                        "bridged_areas": literature_analysis.get("bridged_areas", []),
+                        "key_insights": literature_analysis.get("key_insights", []),
+                        "summary": literature_analysis.get("summary", f"Analysis completed for {len(raw_data_summary.get('data', []))} literature entries."),
+                        "llm_analysis": llm_result.get("response_text", "")
+                    }
+                except (KeyError, json.JSONDecodeError) as e:
+                    logger.error(f"Failed to parse LLM response: {e}")
+                    # Fallback to basic structure
+                    literature_connections = {
+                        "topic": db_agent_task.task_description,
+                        "bridged_areas": [],
+                        "key_insights": ["LLM analysis failed to parse"],
+                        "summary": f"Retrieved {len(raw_data_summary.get('data', []))} literature entries but analysis failed.",
+                        "error": str(e)
+                    }
 
                 insight_name_val = f"Literature Bridge: {db_agent_task.task_description}"
                 insight_publish_request_obj = schemas.InsightPublishRequest(

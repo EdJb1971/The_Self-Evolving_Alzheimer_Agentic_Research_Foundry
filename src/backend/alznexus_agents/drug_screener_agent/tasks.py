@@ -107,25 +107,102 @@ def screen_drugs_task(self, agent_task_id: int):
             metadata={"adworkbench_query_id": adworkbench_query_id, "data_summary": raw_data_summary.get("data", [])[:1]}
         )
 
-        # 2. Simulate complex in-silico drug screening or literature review
-        time.sleep(10) # Simulate complex screening work
+        # CQ-DS-001: Implement actual drug screening using molecular analysis and LLM
+        screening_prompt = f"""Analyze the following biological data and identify potential drug candidates for Alzheimer's disease treatment:
 
-        drug_candidates = [
-            {
-                "candidate_id": "DRUG-001",
-                "name": "Compound Alpha",
-                "target": "Beta-secretase 1",
-                "mechanism_of_action": "BACE1 inhibitor",
-                "rationale": "High binding affinity to BACE1, low off-target effects based on in-silico models."
-            },
-            {
-                "candidate_id": "DRUG-002",
-                "name": "Molecule Beta",
-                "target": "Tau protein aggregation",
-                "mechanism_of_action": "Tau aggregation inhibitor",
-                "rationale": "Literature review suggests strong evidence for reducing Tau pathology in preclinical models."
+Biological Data: {json.dumps(raw_data_summary)}
+
+Task: {db_agent_task.task_description}
+
+Please identify 2-3 promising drug candidates based on:
+1. Molecular targets identified in the data
+2. Known compounds that interact with these targets
+3. Mechanism of action and therapeutic rationale
+4. Supporting evidence from literature or computational predictions
+
+Consider these Alzheimer's-relevant targets:
+- Beta-secretase (BACE1)
+- Gamma-secretase
+- Tau protein aggregation
+- Amyloid-beta aggregation
+- Neuroinflammation pathways
+- Synaptic plasticity modulators
+
+Format your response as a JSON object with this structure:
+{{
+    "drug_candidates": [
+        {{
+            "candidate_id": "DRUG-001",
+            "name": "Compound Name",
+            "target": "Molecular Target",
+            "mechanism_of_action": "How it works",
+            "rationale": "Why it's promising",
+            "confidence_score": 0.85,
+            "evidence_sources": ["source1", "source2"]
+        }}
+    ],
+    "screening_summary": "Overall analysis summary",
+    "recommendations": ["next steps", "additional testing needed"]
+}}"""
+
+        llm_payload = {
+            "model_name": "gemini-1.5-flash",
+            "prompt": screening_prompt,
+            "metadata": {"agent_task_id": agent_task_id, "agent": agent_id}
+        }
+        llm_headers = {"X-API-Key": LLM_API_KEY, "Content-Type": "application/json"}
+
+        llm_response = requests.post(
+            f"{LLM_SERVICE_URL}/llm/structured-output",
+            headers=llm_headers,
+            json={
+                "model_name": "gemini-1.5-flash",
+                "prompt": screening_prompt,
+                "response_format": {
+                    "type": "json_object",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "drug_candidates": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "candidate_id": {"type": "string"},
+                                        "name": {"type": "string"},
+                                        "target": {"type": "string"},
+                                        "mechanism_of_action": {"type": "string"},
+                                        "rationale": {"type": "string"},
+                                        "confidence_score": {"type": "number", "minimum": 0, "maximum": 1},
+                                        "evidence_sources": {"type": "array", "items": {"type": "string"}}
+                                    },
+                                    "required": ["candidate_id", "name", "target", "mechanism_of_action", "rationale"]
+                                }
+                            },
+                            "screening_summary": {"type": "string"},
+                            "recommendations": {"type": "array", "items": {"type": "string"}}
+                        },
+                        "required": ["drug_candidates", "screening_summary", "recommendations"]
+                    }
+                },
+                "metadata": {"agent_task_id": agent_task_id, "agent": agent_id}
             }
-        ]
+        )
+        llm_response.raise_for_status()
+        llm_result = llm_response.json()
+
+        # Parse the structured LLM response
+        try:
+            screening_analysis = llm_result["structured_output"]
+            drug_candidates = screening_analysis.get("drug_candidates", [])
+            screening_summary = screening_analysis.get("screening_summary", "Screening analysis completed.")
+            recommendations = screening_analysis.get("recommendations", [])
+        except (KeyError, json.JSONDecodeError) as e:
+            logger.error(f"Failed to parse LLM drug screening response: {e}")
+            # Fallback to basic structure
+            drug_candidates = []
+            screening_summary = "LLM analysis failed to parse drug screening results."
+            recommendations = ["Manual review recommended"]
 
         # 3. Publish the identified drug candidates as an insight
         # CQ-001-DSA: Capture insight_name before serialization for audit log metadata
@@ -155,23 +232,25 @@ def screen_drugs_task(self, agent_task_id: int):
         publish_response.raise_for_status()
         publish_result = publish_response.json()
 
-        mock_result = {
+        result = {
             "status": "success",
             "agent_output": f"Drug screening completed for task {agent_task_id}.",
             "identified_drug_candidates": drug_candidates,
+            "screening_summary": screening_summary,
+            "recommendations": recommendations,
             "published_insight_id": publish_result.get("insight_id")
         }
 
-        crud.update_agent_task_status(db, agent_task_id, "COMPLETED", mock_result)
+        crud.update_agent_task_status(db, agent_task_id, "COMPLETED", result)
         crud.update_agent_state(db, agent_id, current_task_id=None) # Task completed, clear current task
         log_audit_event(
             entity_type="AGENT",
             entity_id=f"{agent_id}-{agent_task_id}",
             event_type="DRUG_SCREENING_COMPLETED",
             description=f"Agent {agent_id} completed drug screening task {agent_task_id} and published insight.",
-            metadata={"task_result": mock_result}
+            metadata={"task_result": result}
         )
-        return {"agent_task_id": agent_task_id, "status": "COMPLETED", "result": mock_result}
+        return {"agent_task_id": agent_task_id, "status": "COMPLETED", "result": result}
     except requests.exceptions.RequestException as e:
         error_message = f"AD Workbench Proxy or external API call failed: {e}"
         crud.update_agent_task_status(db, agent_task_id, "FAILED", {"error": error_message})

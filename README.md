@@ -82,7 +82,7 @@ AlzNexus employs a robust microservices-oriented architecture designed for long-
 ### System Components:
 *   **Master Orchestrator Service (COMP-001):** The core intelligence, responsible for high-level goal setting, sub-agent coordination, multi-agent debate resolution, and initiating autonomous research cycles. It interacts with the Agent Registry, Audit Trail, and dispatches tasks to sub-agents.
 *   **Statistical Engine Service (COMP-002):** A comprehensive statistical validation and analysis service providing rigorous mathematical validation for all agent-generated insights. Implements correlation analysis, hypothesis testing, effect size calculations, power analysis, and data quality assessment to ensure scientific rigor.
-*   **Uncertainty Service (COMP-002.2):** Advanced uncertainty quantification and error bounds calculation for scientific research outputs. Implements Bayesian neural networks, Monte Carlo methods, physics-informed neural networks, and clinical risk assessment to provide publication-ready confidence intervals and decision confidence scoring.
+*   **Uncertainty Service (COMP-002.2):** Advanced uncertainty quantification and error bounds calculation for scientific research outputs. Implements physics-informed neural networks (PINN) with continual learning, Bayesian neural networks, Monte Carlo methods, and clinical risk assessment. Features knowledge distillation, feedback integration, biological plausibility validation, and publication-ready confidence intervals with TensorFlow Probability and DeepXDE.
 *   **Reproducibility Service (COMP-002.1):** A scientific reproducibility framework ensuring all research outputs are reproducible and version-controlled. Manages random seeds, data provenance tracking, analysis snapshots, and reproducibility validation for publication-quality research.
 *   **Specialized Sub-Agent Services (COMP-003, COMP-014-017, etc.):** A collection of distinct microservices (e.g., Biomarker Hunter, Pathway Modeler, Trial Optimizer, Drug Screener, Data Harmonizer, Hypothesis Validator, Literature Bridger, Collaboration Matchmaker). Each agent possesses specialized domain expertise, implements ReAct/Tool-use loops, reflection, and self-critique, and registers itself with the Agent Registry.
 *   **AD Workbench API Proxy Service (COMP-004):** A critical gateway for all interactions with the AD Workbench. It centralizes API calls, enforces secure federated queries, handles authentication/authorization, and ensures no raw patient data leaves the secure environment.
@@ -92,7 +92,7 @@ AlzNexus employs a robust microservices-oriented architecture designed for long-
 *   **LLM Service (COMP-008):** An abstraction layer for interacting with various Large Language Models (LLMs) via their APIs, handling prompt engineering and model selection.
 *   **Database (PostgreSQL) (COMP-009):** The central persistent data store for agent states, research goals, audit logs, harmonized data schemas, and generated insights.
 *   **Message Queue / Task Queue (RabbitMQ / Celery) (COMP-010):** Enables asynchronous communication between services and manages long-running background tasks, ensuring system responsiveness and scalability.
-*   **Bias Detection Service (COMP-011):** A dedicated agent for continuously analyzing data inputs, agent reasoning, and generated outputs for potential biases, flagging issues and proposing corrections.
+*   **Bias Detection Service (COMP-011):** Advanced statistical bias detection using Fairlearn for fairness metrics, causal inference analysis with CausalModel, data quality assessment, and demographic representation analysis. Implements statistical fairness (demographic parity, equalized odds), causal bias detection, and actionable correction recommendations for medical AI fairness.
 *   **Frontend Application (AD Workbench Plugin) (COMP-012):** A React-based user interface deployed as a native plugin within AD Workbench, providing secure multi-user query capabilities, displaying proactive insights, and allowing monitoring of agent activity and audit trails.
 *   **Agent Registry Service (COMP-013):** A dedicated service for dynamic registration and discovery of specialized sub-agents, allowing the Master Orchestrator to query for available agents and their functionalities in real-time.
 
@@ -108,6 +108,7 @@ AlzNexus employs a robust microservices-oriented architecture designed for long-
 *   **Knowledge Base:** ChromaDB vector database with intelligent RAG and token-aware context retrieval
 *   **Statistical Analysis:** SciPy, StatsModels, Scikit-learn for rigorous scientific validation
 *   **Uncertainty Quantification:** PyMC3 (Bayesian inference), TensorFlow Probability (probabilistic ML), DeepXDE (physics-informed neural networks), ArviZ (Bayesian analysis)
+*   **Bias Detection & Fairness:** Fairlearn (statistical fairness), CausalInference (causal bias analysis), StatsModels (statistical modeling)
 *   **Literature Integration:** PubMed API with citation analysis and biological plausibility validation
 
 ## Current Development Status
@@ -154,11 +155,22 @@ AlzNexus employs a robust microservices-oriented architecture designed for long-
 - **Bayesian Neural Networks:** PyMC3 implementation with probabilistic uncertainty estimation
 - **Monte Carlo Dropout:** TensorFlow ensemble methods with dropout-based uncertainty
 - **Physics-Informed Neural Networks:** DeepXDE PINNs for Alzheimer's disease modeling with biological constraints
+- **PINN Continual Learning:** Knowledge distillation, feedback integration, and biological plausibility validation
 - **Clinical Risk Assessment:** Comprehensive significance testing and false positive analysis
-- **Self-Evolving PINN Framework:** Continuous learning from new data and validated research findings
+- **Self-Evolving PINN Framework:** Continuous learning from new data and validated research findings with TensorFlow Probability
 - **Publication-Ready Uncertainty:** All predictions include 95% confidence bounds for journal submission
 - **Clinical Decision Support:** Uncertainty estimates enable evidence-based medical recommendations
 - **Scientific Rigor:** Meets FDA/EMA standards for uncertainty quantification in research claims
+
+### ✅ Completed (Scientific Phase 6: Statistical Bias Detection & Fairness)
+- **Bias Detection Service:** Complete statistical fairness analysis using Fairlearn and causal inference
+- **Statistical Fairness Metrics:** Demographic parity, equalized odds, and fairness-aware machine learning
+- **Causal Inference Analysis:** CausalModel implementation for confounding variable detection and bias analysis
+- **Data Quality Assessment:** Missing data analysis, class imbalance detection, and duplicate identification
+- **Demographic Representation:** Automated analysis of representation across protected attributes
+- **Actionable Corrections:** Evidence-based recommendations for bias mitigation in medical AI
+- **Medical AI Fairness:** Specialized algorithms for healthcare fairness and equity assessment
+- **Regulatory Compliance:** Meets FDA guidance on bias detection in medical AI systems
 
 ### ✅ Completed (Scientific Phase 5: Autonomous Learning & Self-Evolution)
 - **Autonomous Learning Service:** Complete FastAPI microservice with self-evolving learning infrastructure

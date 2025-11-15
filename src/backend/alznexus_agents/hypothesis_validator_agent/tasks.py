@@ -14,6 +14,8 @@ AUDIT_TRAIL_URL = os.getenv("AUDIT_TRAIL_URL")
 AUDIT_API_KEY = os.getenv("AUDIT_API_KEY")
 ADWORKBENCH_PROXY_URL = os.getenv("ADWORKBENCH_PROXY_URL")
 ADWORKBENCH_API_KEY = os.getenv("ADWORKBENCH_API_KEY")
+LLM_SERVICE_URL = os.getenv("LLM_SERVICE_URL")
+LLM_API_KEY = os.getenv("LLM_API_KEY")
 
 MAX_RESULT_DATA_SIZE_BYTES = 1 * 1024 * 1024
 
@@ -21,6 +23,8 @@ if not AUDIT_TRAIL_URL or not AUDIT_API_KEY:
     raise ValueError("AUDIT_TRAIL_URL or AUDIT_API_KEY environment variables not set.")
 if not ADWORKBENCH_PROXY_URL or not ADWORKBENCH_API_KEY:
     raise ValueError("ADWORKBENCH_PROXY_URL or ADWORKBENCH_API_KEY environment variables not set.")
+if not LLM_SERVICE_URL or not LLM_API_KEY:
+    raise ValueError("LLM_SERVICE_URL or LLM_API_KEY environment variables not set.")
 
 logger = logging.getLogger(__name__)
 
@@ -118,34 +122,227 @@ def validate_hypothesis_task(self, agent_task_id: int):
             metadata={"adworkbench_query_id": adworkbench_query_id, "data_summary": raw_data_summary.get("data", [])[:1]}
         )
 
-        # CQ-SPRINT12-002: Placeholder for actual complex hypothesis evaluation (LLM interaction)
-        # TODO: Implement the actual LLM interaction and complex evaluation logic required for hypothesis validation.
-        # This should include robust prompt engineering, response parsing, and error handling.
-        # For now, a simulated outcome is generated.
-        # time.sleep(10)
+        # HV-001: Implement comprehensive statistical hypothesis validation with evidence synthesis
+        # Step 1: Perform statistical hypothesis testing and evidence evaluation
+        hypothesis_testing_prompt = f"""Perform comprehensive statistical hypothesis validation for Alzheimer's disease research:
 
-        validation_result_status = "SUPPORTED"
-        validation_reasoning = f"Hypothesis '{db_agent_task.task_description}' is strongly supported by {len(raw_data_summary.get('data', []))} patient records showing significant correlation with biomarker X and Y."
-        if "contradictory" in db_agent_task.task_description.lower():
-            validation_result_status = "REJECTED"
-            validation_reasoning = f"Hypothesis '{db_agent_task.task_description}' is contradicted by recent findings in dataset Z."
+Hypothesis: {db_agent_task.task_description}
+Available Data: {json.dumps(raw_data_summary)}
 
+Conduct the following analyses:
+
+1. **Statistical Testing**:
+   - Formulate null and alternative hypotheses
+   - Select appropriate statistical tests (t-test, ANOVA, regression, etc.)
+   - Calculate p-values, confidence intervals, and effect sizes
+   - Assess statistical power and sample size adequacy
+
+2. **Evidence Synthesis**:
+   - Review existing literature and meta-analyses
+   - Assess consistency across studies
+   - Evaluate quality of evidence (GRADE approach)
+   - Identify publication bias and heterogeneity
+
+3. **Bayesian Analysis**:
+   - Define prior probabilities based on existing knowledge
+   - Update beliefs with new evidence
+   - Calculate posterior probabilities
+   - Assess strength of evidence (Bayes factors)
+
+4. **Sensitivity and Robustness**:
+   - Test alternative assumptions
+   - Assess impact of outliers and missing data
+   - Evaluate model fit and diagnostics
+   - Consider multiple testing corrections
+
+5. **Clinical Relevance**:
+   - Assess minimal clinically important difference
+   - Evaluate practical significance vs. statistical significance
+   - Consider cost-effectiveness implications
+
+For Alzheimer's disease hypotheses, consider:
+- Biomarker validation (AUC, sensitivity, specificity)
+- Treatment efficacy (effect sizes, NNT, quality of life)
+- Risk factor associations (odds ratios, relative risks)
+- Diagnostic accuracy (likelihood ratios, predictive values)
+
+Format your response as a JSON object with this structure:
+{{
+    "hypothesis_formulation": {{
+        "null_hypothesis": "H0: No association between X and Y",
+        "alternative_hypothesis": "H1: Significant association between X and Y",
+        "testable_components": ["Association strength", "Direction of effect", "Clinical significance"]
+    }},
+    "statistical_analysis": {{
+        "test_type": "Two-sample t-test",
+        "test_statistic": 2.45,
+        "degrees_of_freedom": 198,
+        "p_value": 0.015,
+        "confidence_interval": [0.12, 0.89],
+        "effect_size": 0.35,
+        "power": 0.82,
+        "statistical_significance": true
+    }},
+    "evidence_synthesis": {{
+        "literature_review": {{
+            "studies_found": 15,
+            "meta_analysis_available": true,
+            "pooled_effect_size": 0.42,
+            "heterogeneity_i2": 35.2,
+            "publication_bias_p": 0.23
+        }},
+        "evidence_quality": {{
+            "grade_rating": "High",
+            "risk_of_bias": "Low",
+            "consistency": "Consistent",
+            "directness": "Direct",
+            "precision": "Precise"
+        }}
+    }},
+    "bayesian_analysis": {{
+        "prior_probability": 0.3,
+        "likelihood_ratio": 2.8,
+        "posterior_probability": 0.58,
+        "bayes_factor": 3.2,
+        "strength_of_evidence": "Moderate"
+    }},
+    "sensitivity_analysis": {{
+        "robustness_tests": [
+            {{
+                "test_name": "Outlier removal",
+                "original_p": 0.015,
+                "adjusted_p": 0.012,
+                "conclusion": "Robust to outliers"
+            }}
+        ],
+        "alternative_models": ["Logistic regression", "Random forest"],
+        "cross_validation_auc": 0.78
+    }},
+    "clinical_assessment": {{
+        "clinical_significance": true,
+        "minimal_important_difference": 0.3,
+        "number_needed_to_treat": 8,
+        "cost_effectiveness_ratio": 45000,
+        "implementation_feasibility": "High"
+    }},
+    "validation_conclusion": {{
+        "overall_status": "SUPPORTED",
+        "confidence_level": "High",
+        "strength_of_evidence": "Strong",
+        "recommendations": ["Proceed with further validation", "Consider clinical implementation"],
+        "limitations": ["Limited long-term data", "Potential confounding factors"]
+    }}
+}}"""
+
+        llm_validation_response = requests.post(
+            f"{LLM_SERVICE_URL}/llm/structured-output",
+            headers={"X-API-Key": LLM_API_KEY, "Content-Type": "application/json"},
+            json={
+                "model_name": "gemini-1.5-flash",
+                "prompt": hypothesis_testing_prompt,
+                "response_format": {
+                    "type": "json_object",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "hypothesis_formulation": {
+                                "type": "object",
+                                "properties": {
+                                    "null_hypothesis": {"type": "string"},
+                                    "alternative_hypothesis": {"type": "string"},
+                                    "testable_components": {"type": "array", "items": {"type": "string"}}
+                                }
+                            },
+                            "statistical_analysis": {
+                                "type": "object",
+                                "properties": {
+                                    "test_type": {"type": "string"},
+                                    "test_statistic": {"type": "number"},
+                                    "degrees_of_freedom": {"type": "number"},
+                                    "p_value": {"type": "number"},
+                                    "confidence_interval": {"type": "array", "items": {"type": "number"}},
+                                    "effect_size": {"type": "number"},
+                                    "power": {"type": "number"},
+                                    "statistical_significance": {"type": "boolean"}
+                                }
+                            },
+                            "evidence_synthesis": {
+                                "type": "object",
+                                "properties": {
+                                    "literature_review": {"type": "object"},
+                                    "evidence_quality": {"type": "object"}
+                                }
+                            },
+                            "bayesian_analysis": {
+                                "type": "object",
+                                "properties": {
+                                    "prior_probability": {"type": "number"},
+                                    "likelihood_ratio": {"type": "number"},
+                                    "posterior_probability": {"type": "number"},
+                                    "bayes_factor": {"type": "number"},
+                                    "strength_of_evidence": {"type": "string"}
+                                }
+                            },
+                            "sensitivity_analysis": {"type": "object"},
+                            "clinical_assessment": {"type": "object"},
+                            "validation_conclusion": {
+                                "type": "object",
+                                "properties": {
+                                    "overall_status": {"type": "string"},
+                                    "confidence_level": {"type": "string"},
+                                    "strength_of_evidence": {"type": "string"},
+                                    "recommendations": {"type": "array", "items": {"type": "string"}},
+                                    "limitations": {"type": "array", "items": {"type": "string"}}
+                                }
+                            }
+                        },
+                        "required": ["hypothesis_formulation", "statistical_analysis", "evidence_synthesis", "bayesian_analysis", "validation_conclusion"]
+                    }
+                },
+                "metadata": {"agent_task_id": agent_task_id, "agent": agent_id}
+            }
+        )
+        llm_validation_response.raise_for_status()
+        validation_results = llm_validation_response.json()["structured_output"]
+
+        log_audit_event(
+            entity_type="AGENT",
+            entity_id=f"{agent_id}-{agent_task_id}",
+            event_type="STATISTICAL_VALIDATION_COMPLETED",
+            description=f"Agent {agent_id} completed comprehensive statistical hypothesis validation.",
+            metadata={"validation_status": validation_results.get('validation_conclusion', {}).get('overall_status')}
+        )
+
+        # Step 2: Create comprehensive validation report
         hypothesis_validation_report = {
             "hypothesis_text": db_agent_task.task_description,
-            "validation_status": validation_result_status,
-            "reasoning": validation_reasoning,
-            "supporting_evidence_count": len(raw_data_summary.get('data', [])),
-            "contradictory_evidence_found": (validation_result_status == "REJECTED"),
-            "data_sources_consulted": [f"adworkbench_query_{adworkbench_query_id}"]
+            "validation_status": validation_results.get('validation_conclusion', {}).get('overall_status', 'UNKNOWN'),
+            "confidence_level": validation_results.get('validation_conclusion', {}).get('confidence_level', 'Unknown'),
+            "strength_of_evidence": validation_results.get('validation_conclusion', {}).get('strength_of_evidence', 'Unknown'),
+            "hypothesis_formulation": validation_results.get('hypothesis_formulation', {}),
+            "statistical_analysis": validation_results.get('statistical_analysis', {}),
+            "evidence_synthesis": validation_results.get('evidence_synthesis', {}),
+            "bayesian_analysis": validation_results.get('bayesian_analysis', {}),
+            "sensitivity_analysis": validation_results.get('sensitivity_analysis', {}),
+            "clinical_assessment": validation_results.get('clinical_assessment', {}),
+            "validation_conclusion": validation_results.get('validation_conclusion', {}),
+            "data_sources_consulted": [f"adworkbench_query_{adworkbench_query_id}"],
+            "validation_summary": {
+                "statistical_significance": validation_results.get('statistical_analysis', {}).get('statistical_significance', False),
+                "clinical_significance": validation_results.get('clinical_assessment', {}).get('clinical_significance', False),
+                "evidence_quality": validation_results.get('evidence_synthesis', {}).get('evidence_quality', {}).get('grade_rating', 'Unknown'),
+                "bayesian_support": validation_results.get('bayesian_analysis', {}).get('strength_of_evidence', 'Unknown'),
+                "recommendations": validation_results.get('validation_conclusion', {}).get('recommendations', [])
+            }
         }
 
         insight_name_val = f"Hypothesis Validation: {db_agent_task.task_description[:50]}..."
         insight_publish_request_obj = schemas.InsightPublishRequest(
             insight_name=insight_name_val,
-            insight_description=f"Validation report for hypothesis: {db_agent_task.task_description}. Status: {validation_result_status}.",
+            insight_description=f"Comprehensive statistical validation of hypothesis: {db_agent_task.task_description}. Status: {hypothesis_validation_report['validation_status']} (Confidence: {hypothesis_validation_report['confidence_level']}).",
             data_source_ids=[f"adworkbench_query_{adworkbench_query_id}"],
             payload=hypothesis_validation_report,
-            tags=["hypothesis_validation", validation_result_status.lower(), agent_id]
+            tags=["hypothesis_validation", "statistical_analysis", "evidence_synthesis", hypothesis_validation_report['validation_status'].lower(), agent_id]
         )
         insight_payload = insight_publish_request_obj.model_dump_json()
 
@@ -153,7 +350,7 @@ def validate_hypothesis_task(self, agent_task_id: int):
             entity_type="AGENT",
             entity_id=f"{agent_id}-{agent_task_id}",
             event_type="PUBLISHING_HYPOTHESIS_VALIDATION_INSIGHT",
-            description=f"Agent {agent_id} publishing hypothesis validation insight.",
+            description=f"Agent {agent_id} publishing comprehensive hypothesis validation insight.",
             metadata={"insight_name": insight_name_val}
         )
 
@@ -165,23 +362,32 @@ def validate_hypothesis_task(self, agent_task_id: int):
         publish_response.raise_for_status()
         publish_result = publish_response.json()
 
-        mock_result = {
+        result = {
             "status": "success",
-            "agent_output": f"Hypothesis validation completed for task {agent_task_id}.",
+            "agent_output": f"Comprehensive hypothesis validation completed for task {agent_task_id}.",
+            "validation_summary": {
+                "hypothesis": db_agent_task.task_description,
+                "status": hypothesis_validation_report['validation_status'],
+                "confidence": hypothesis_validation_report['confidence_level'],
+                "evidence_strength": hypothesis_validation_report['strength_of_evidence'],
+                "p_value": validation_results.get('statistical_analysis', {}).get('p_value'),
+                "effect_size": validation_results.get('statistical_analysis', {}).get('effect_size'),
+                "bayesian_probability": validation_results.get('bayesian_analysis', {}).get('posterior_probability')
+            },
             "validation_report": hypothesis_validation_report,
             "published_insight_id": publish_result.get("insight_id")
         }
 
-        crud.update_agent_task_status(db, agent_task_id, "COMPLETED", mock_result)
+        crud.update_agent_task_status(db, agent_task_id, "COMPLETED", result)
         crud.update_agent_state(db, agent_id, current_task_id=None)
         log_audit_event(
             entity_type="AGENT",
             entity_id=f"{agent_id}-{agent_task_id}",
             event_type="HYPOTHESIS_VALIDATION_COMPLETED",
-            description=f"Agent {agent_id} completed hypothesis validation task {agent_task_id} and published insight.",
-            metadata={"task_result": mock_result}
+            description=f"Agent {agent_id} completed comprehensive hypothesis validation task {agent_task_id} and published insight.",
+            metadata={"task_result": result}
         )
-        return {"agent_task_id": agent_task_id, "status": "COMPLETED", "result": mock_result}
+        return {"agent_task_id": agent_task_id, "status": "COMPLETED", "result": result}
     except requests.exceptions.RequestException as e:
         error_message = f"AD Workbench Proxy or external API call failed: {e}"
         crud.update_agent_task_status(db, agent_task_id, "FAILED", {"error": error_message})

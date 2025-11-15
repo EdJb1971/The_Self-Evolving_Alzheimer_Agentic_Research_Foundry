@@ -6,9 +6,9 @@ from sqlalchemy.pool import StaticPool
 from unittest.mock import patch, MagicMock
 import os
 
-from src.backend.alznexus_bias_detection_service.main import app, get_db, get_api_key
-from src.backend.alznexus_bias_detection_service.database import Base
-from src.backend.alznexus_bias_detection_service import models, schemas, crud
+from main import app, get_db, get_api_key
+from database import Base
+import models, schemas, crud
 
 # Setup test database
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"

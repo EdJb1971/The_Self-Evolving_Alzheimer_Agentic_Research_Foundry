@@ -20,3 +20,23 @@ def update_adworkbench_query_status(db: Session, query_id: int, status: str, res
         db.commit()
         db.refresh(db_query)
     return db_query
+
+def create_adworkbench_insight(db: Session, insight: schemas.InsightPublishRequest):
+    db_insight = models.ADWorkbenchInsight(
+        insight_name=insight.insight_name,
+        insight_description=insight.insight_description,
+        data_source_ids=insight.data_source_ids,
+        payload=insight.payload,
+        tags=insight.tags,
+        status="PUBLISHED"
+    )
+    db.add(db_insight)
+    db.commit()
+    db.refresh(db_insight)
+    return db_insight
+
+def get_adworkbench_insight(db: Session, insight_id: int):
+    return db.query(models.ADWorkbenchInsight).filter(models.ADWorkbenchInsight.id == insight_id).first()
+
+def get_adworkbench_insights(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.ADWorkbenchInsight).offset(skip).limit(limit).all()

@@ -81,46 +81,308 @@ def harmonize_data_task(self, agent_task_id: int):
             metadata={"datasets_found": datasets_found}
         )
 
-        # Perform schema harmonization using LLM
-        harmonization_prompt = f"Harmonize the schemas from these datasets: {datasets_found}. Create a unified schema."
-        llm_payload = {
-            "model_name": "gemini-1.5-flash",
-            "prompt": harmonization_prompt,
-            "metadata": {"agent_task_id": agent_task_id}
-        }
-        llm_headers = {"X-API-Key": LLM_API_KEY, "Content-Type": "application/json"}
-        
-        llm_response = requests.post(
-            f"{LLM_SERVICE_URL}/llm/chat",
+        # DH-001: Implement comprehensive data harmonization with schema analysis, quality assessment, and ETL
+        # Step 1: Analyze dataset schemas and metadata
+        schema_analysis_prompt = f"""Analyze the following datasets and extract their schemas, data types, and relationships:
+
+Datasets: {json.dumps(datasets_found)}
+
+For each dataset, identify:
+1. Column/field names and their data types
+2. Primary keys and foreign keys
+3. Data constraints and validation rules
+4. Missing data patterns
+5. Data quality issues
+
+Format your response as a JSON object with this structure:
+{{
+    "datasets": [
+        {{
+            "dataset_id": "dataset_1",
+            "schema": {{
+                "columns": [
+                    {{
+                        "name": "column_name",
+                        "data_type": "string|integer|float|date|boolean",
+                        "nullable": true,
+                        "constraints": ["unique", "not_null"],
+                        "description": "field description"
+                    }}
+                ],
+                "primary_key": ["column1"],
+                "relationships": ["foreign_key_column -> referenced_table.column"]
+            }},
+            "data_quality": {{
+                "completeness": 0.95,
+                "consistency": 0.88,
+                "accuracy": 0.92,
+                "issues": ["missing values in column X", "inconsistent date formats"]
+            }},
+            "sample_data": ["sample1", "sample2"]
+        }}
+    ]
+}}"""
+
+        llm_schema_response = requests.post(
+            f"{LLM_SERVICE_URL}/llm/structured-output",
             headers=llm_headers,
-            json=llm_payload
+            json={
+                "model_name": "gemini-1.5-flash",
+                "prompt": schema_analysis_prompt,
+                "response_format": {
+                    "type": "json_object",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "datasets": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "dataset_id": {"type": "string"},
+                                        "schema": {
+                                            "type": "object",
+                                            "properties": {
+                                                "columns": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "name": {"type": "string"},
+                                                            "data_type": {"type": "string"},
+                                                            "nullable": {"type": "boolean"},
+                                                            "constraints": {"type": "array", "items": {"type": "string"}},
+                                                            "description": {"type": "string"}
+                                                        }
+                                                    }
+                                                },
+                                                "primary_key": {"type": "array", "items": {"type": "string"}},
+                                                "relationships": {"type": "array", "items": {"type": "string"}}
+                                            }
+                                        },
+                                        "data_quality": {
+                                            "type": "object",
+                                            "properties": {
+                                                "completeness": {"type": "number"},
+                                                "consistency": {"type": "number"},
+                                                "accuracy": {"type": "number"},
+                                                "issues": {"type": "array", "items": {"type": "string"}}
+                                            }
+                                        },
+                                        "sample_data": {"type": "array", "items": {"type": "string"}}
+                                    }
+                                }
+                            }
+                        },
+                        "required": ["datasets"]
+                    }
+                },
+                "metadata": {"agent_task_id": agent_task_id, "agent": agent_id}
+            }
         )
-        llm_response.raise_for_status()
-        llm_result = llm_response.json()
-        harmonization_text = llm_result["response_text"]
+        llm_schema_response.raise_for_status()
+        schema_analysis = llm_schema_response.json()["structured_output"]
+
+        # Step 2: Perform semantic alignment using biomedical ontologies
+        semantic_alignment_prompt = f"""Perform semantic alignment of the analyzed datasets using biomedical ontologies:
+
+Dataset Analysis: {json.dumps(schema_analysis)}
+
+Task: Create semantic mappings between datasets using these biomedical ontologies:
+- SNOMED CT (clinical terms)
+- LOINC (laboratory observations)
+- RxNorm (medications)
+- ICD-10/11 (diagnoses)
+- HGNC (gene nomenclature)
+- GO (gene ontology)
+- MeSH (medical subject headings)
+
+For Alzheimer's disease research, focus on:
+- Clinical assessments (MMSE, CDR, ADAS-Cog)
+- Biomarkers (amyloid-beta, tau, p-tau)
+- Genetic markers (APOE, PSEN1, APP)
+- Imaging data (MRI, PET)
+- Drug treatments and clinical trials
+
+Format your response as a JSON object with this structure:
+{{
+    "semantic_mappings": [
+        {{
+            "source_dataset": "dataset_1",
+            "target_concept": "Alzheimer's Disease Assessment",
+            "ontology_term": "SNOMED CT 371151006",
+            "confidence": 0.95,
+            "mapping_type": "exact|partial|related",
+            "transformation_rules": ["normalize_scale_0_30", "handle_missing_as_null"]
+        }}
+    ],
+    "unified_schema": {{
+        "name": "Alzheimer_Research_Unified_Schema",
+        "version": "1.0",
+        "domains": ["clinical", "biomarker", "genetic", "imaging"],
+        "columns": [
+            {{
+                "name": "patient_id",
+                "data_type": "string",
+                "semantic_type": "Patient Identifier",
+                "ontology_mapping": "SNOMED CT 116154003",
+                "validation_rules": ["not_null", "unique"],
+                "description": "Unique patient identifier"
+            }}
+        ]
+    }},
+    "etl_pipeline": {{
+        "transformations": [
+            {{
+                "step_name": "normalize_clinical_scores",
+                "description": "Normalize MMSE scores to 0-30 scale",
+                "input_columns": ["mmse_score", "mmse_total"],
+                "output_column": "normalized_mmse",
+                "transformation_type": "normalization",
+                "parameters": {{"min_value": 0, "max_value": 30}}
+            }}
+        ],
+        "data_quality_rules": [
+            {{
+                "rule_name": "age_range_check",
+                "description": "Age must be between 18 and 120",
+                "column": "age",
+                "rule_type": "range",
+                "parameters": {{"min": 18, "max": 120}}
+            }}
+        ]
+    }}
+}}"""
+
+        llm_alignment_response = requests.post(
+            f"{LLM_SERVICE_URL}/llm/structured-output",
+            headers=llm_headers,
+            json={
+                "model_name": "gemini-1.5-flash",
+                "prompt": semantic_alignment_prompt,
+                "response_format": {
+                    "type": "json_object",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "semantic_mappings": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "source_dataset": {"type": "string"},
+                                        "target_concept": {"type": "string"},
+                                        "ontology_term": {"type": "string"},
+                                        "confidence": {"type": "number"},
+                                        "mapping_type": {"type": "string"},
+                                        "transformation_rules": {"type": "array", "items": {"type": "string"}}
+                                    }
+                                }
+                            },
+                            "unified_schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {"type": "string"},
+                                    "version": {"type": "string"},
+                                    "domains": {"type": "array", "items": {"type": "string"}},
+                                    "columns": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "name": {"type": "string"},
+                                                "data_type": {"type": "string"},
+                                                "semantic_type": {"type": "string"},
+                                                "ontology_mapping": {"type": "string"},
+                                                "validation_rules": {"type": "array", "items": {"type": "string"}},
+                                                "description": {"type": "string"}
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "etl_pipeline": {
+                                "type": "object",
+                                "properties": {
+                                    "transformations": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "step_name": {"type": "string"},
+                                                "description": {"type": "string"},
+                                                "input_columns": {"type": "array", "items": {"type": "string"}},
+                                                "output_column": {"type": "string"},
+                                                "transformation_type": {"type": "string"},
+                                                "parameters": {"type": "object"}
+                                            }
+                                        }
+                                    },
+                                    "data_quality_rules": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "rule_name": {"type": "string"},
+                                                "description": {"type": "string"},
+                                                "column": {"type": "string"},
+                                                "rule_type": {"type": "string"},
+                                                "parameters": {"type": "object"}
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "required": ["semantic_mappings", "unified_schema", "etl_pipeline"]
+                    }
+                },
+                "metadata": {"agent_task_id": agent_task_id, "agent": agent_id}
+            }
+        )
+        llm_alignment_response.raise_for_status()
+        harmonization_result = llm_alignment_response.json()["structured_output"]
+
+        log_audit_event(
+            entity_type="AGENT",
+            entity_id=f"{agent_id}-{agent_task_id}",
+            event_type="SEMANTIC_ALIGNMENT_COMPLETED",
+            description=f"Agent {agent_id} completed semantic alignment and ETL pipeline generation.",
+            metadata={"mappings_created": len(harmonization_result.get('semantic_mappings', []))}
+        )
         
+        # Step 3: Create comprehensive harmonization report
         harmonized_schema = {
             "schema_name": f"Harmonized_Schema_for_{db_agent_task.task_description.replace(' ', '_')}",
             "version": "1.0",
-            "llm_harmonization": harmonization_text,
             "source_datasets": datasets_found,
-            "harmonization_report": "LLM-generated harmonized schema."
+            "schema_analysis": schema_analysis,
+            "semantic_mappings": harmonization_result.get("semantic_mappings", []),
+            "unified_schema": harmonization_result.get("unified_schema", {}),
+            "etl_pipeline": harmonization_result.get("etl_pipeline", {}),
+            "harmonization_report": {
+                "datasets_analyzed": len(schema_analysis.get('datasets', [])),
+                "semantic_mappings_created": len(harmonization_result.get('semantic_mappings', [])),
+                "unified_columns": len(harmonization_result.get('unified_schema', {}).get('columns', [])),
+                "etl_steps": len(harmonization_result.get('etl_pipeline', {}).get('transformations', [])),
+                "quality_rules": len(harmonization_result.get('etl_pipeline', {}).get('data_quality_rules', []))
+            }
         }
 
-        # Publish harmonized schema as an insight
+        # Publish comprehensive harmonization results as an insight
         insight_payload = schemas.InsightPublishRequest(
-            insight_name=f"Harmonized Schema: {harmonized_schema['schema_name']}",
-            insight_description=f"Automatically generated harmonized schema for datasets: {', '.join(datasets_found)}.",
+            insight_name=f"Comprehensive Data Harmonization: {harmonized_schema['schema_name']}",
+            insight_description=f"Complete data harmonization analysis including schema analysis, semantic alignment, and ETL pipeline for {len(datasets_found)} datasets.",
             data_source_ids=datasets_found,
             payload=harmonized_schema,
-            tags=["data_harmonization", "schema", agent_id]
+            tags=["data_harmonization", "schema", "semantic_alignment", "etl", "biomedical_ontology", agent_id]
         ).model_dump_json()
 
         log_audit_event(
             entity_type="AGENT",
             entity_id=f"{agent_id}-{agent_task_id}",
             event_type="PUBLISHING_HARMONIZED_INSIGHT",
-            description=f"Agent {agent_id} publishing harmonized schema insight.",
+            description=f"Agent {agent_id} publishing comprehensive harmonization insight.",
             metadata={"insight_name": harmonized_schema['schema_name']}
         )
 
@@ -132,23 +394,31 @@ def harmonize_data_task(self, agent_task_id: int):
         publish_response.raise_for_status()
         publish_result = publish_response.json()
 
-        mock_result = {
+        result = {
             "status": "success",
-            "agent_output": f"Data harmonization completed for task {agent_task_id}.",
+            "agent_output": f"Comprehensive data harmonization completed for task {agent_task_id}.",
+            "harmonization_summary": {
+                "datasets_processed": len(datasets_found),
+                "schema_analysis_completed": True,
+                "semantic_mappings_created": len(harmonization_result.get('semantic_mappings', [])),
+                "unified_schema_generated": True,
+                "etl_pipeline_created": True,
+                "quality_assessment_performed": True
+            },
             "harmonized_schema": harmonized_schema,
             "published_insight_id": publish_result.get("insight_id")
         }
 
-        crud.update_agent_task_status(db, agent_task_id, "COMPLETED", mock_result)
+        crud.update_agent_task_status(db, agent_task_id, "COMPLETED", result)
         crud.update_agent_state(db, agent_id, current_task_id=None) # Task completed, clear current task
         log_audit_event(
             entity_type="AGENT",
             entity_id=f"{agent_id}-{agent_task_id}",
             event_type="HARMONIZATION_COMPLETED",
-            description=f"Agent {agent_id} completed data harmonization task {agent_task_id} and published insight.",
-            metadata={"task_result": mock_result}
+            description=f"Agent {agent_id} completed comprehensive data harmonization task {agent_task_id} and published insight.",
+            metadata={"task_result": result}
         )
-        return {"agent_task_id": agent_task_id, "status": "COMPLETED", "result": mock_result}
+        return {"agent_task_id": agent_task_id, "status": "COMPLETED", "result": result}
     except requests.exceptions.RequestException as e:
         error_message = f"AD Workbench Proxy or external API call failed: {e}"
         crud.update_agent_task_status(db, agent_task_id, "FAILED", {"error": error_message})

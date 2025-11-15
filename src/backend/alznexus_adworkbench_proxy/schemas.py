@@ -29,3 +29,8 @@ class InsightPublishRequest(BaseModel):
     data_source_ids: list[str] = Field(..., description="List of data source IDs related to the insight.")
     payload: dict = Field(..., description="The actual insight data payload.")
     tags: list[str] = Field(default_factory=list, description="Optional tags for the insight.")
+
+class InsightPublishResponse(BaseModel):
+    insight_id: int = Field(..., description="Internal ID of the published insight.")
+    message: str = Field(..., description="Status message.")
+    workbench_insight_id: str | None = Field(None, description="ID from AD Workbench if successfully synced.")

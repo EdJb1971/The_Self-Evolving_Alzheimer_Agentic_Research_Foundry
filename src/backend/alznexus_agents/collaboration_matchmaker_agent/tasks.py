@@ -151,34 +151,134 @@ def match_collaboration_task(self, agent_task_id: int):
                 metadata={"num_registered_agents": len(registered_agents)}
             )
 
-            # 3. Simulate analysis to match problems with agents/experts
-            # TODO: CQ-CM-002: Replace with actual complex matching logic (LLM interaction, capability matching). The blocking time.sleep() has been removed.
+            # CQ-CM-002: Implement actual complex matching logic using LLM and agent capabilities
             problem_statement = raw_problem_data.get("data", [{}])[0].get("problem_description", db_agent_task.task_description)
-            suggested_collaborations = {
-                "research_problem": problem_statement,
-                "suggested_teams": [
-                    {
-                        "team_id": "TEAM-001",
-                        "agents": [
-                            {"agent_id": "biomarker_hunter_agent_001", "role": "Biomarker Identification"},
-                            {"agent_id": "pathway_modeler_agent_001", "role": "Disease Pathway Modeling"}
-                        ],
-                        "rationale": "Combines biomarker discovery with pathway analysis for comprehensive understanding."
-                    },
-                    {
-                        "team_id": "TEAM-002",
-                        "agents": [
-                            {"agent_id": "data_harmonizer_agent_001", "role": "Data Integration"},
-                            {"agent_id": "literature_bridger_agent_001", "role": "Contextual Literature Review"}
-                        ],
-                        "rationale": "Ensures data consistency and enriches findings with relevant scientific context."
-                    }
-                ],
-                "external_experts": [
-                    {"name": "Dr. Jane Doe", "expertise": "Neurogenetics", "affiliation": "University X"}
-                ],
-                "matchmaking_summary": f"Identified optimal teams based on problem complexity and {len(registered_agents)} available agents."
+
+            # Analyze agent capabilities and match to problem
+            agent_capabilities = []
+            for agent in registered_agents:
+                agent_capabilities.append({
+                    "agent_id": agent["agent_id"],
+                    "capabilities": agent.get("capabilities", []),
+                    "api_endpoint": agent.get("api_endpoint", "")
+                })
+
+            # Use LLM to analyze problem and suggest optimal collaborations
+            collaboration_prompt = f"""Analyze this research problem and suggest optimal agent collaborations:
+
+Research Problem: {problem_statement}
+
+Available Agents and Capabilities:
+{json.dumps(agent_capabilities, indent=2)}
+
+Task: {db_agent_task.task_description}
+
+Please suggest 2-3 optimal agent teams that would work together effectively on this problem. Consider:
+1. Complementary capabilities that cover different aspects of the problem
+2. Agent specializations that align with research needs
+3. Potential for interdisciplinary insights
+
+Format your response as a JSON object with this structure:
+{{
+    "suggested_teams": [
+        {{
+            "team_id": "TEAM-001",
+            "agents": [
+                {{"agent_id": "agent_name", "role": "Specific role description"}}
+            ],
+            "rationale": "Why this team composition is optimal",
+            "expected_outcomes": ["outcome1", "outcome2"]
+        }}
+    ],
+    "external_experts": [
+        {{"name": "Expert Name", "expertise": "Field", "affiliation": "Institution"}}
+    ],
+    "matchmaking_summary": "Overall analysis summary"
+}}"""
+
+            llm_payload = {
+                "model_name": "gemini-1.5-flash",
+                "prompt": collaboration_prompt,
+                "metadata": {"agent_task_id": agent_task_id, "agent": agent_id}
             }
+            llm_headers = {"X-API-Key": LLM_API_KEY, "Content-Type": "application/json"}
+
+            llm_response = requests.post(
+                f"{LLM_SERVICE_URL}/llm/structured-output",
+                headers=llm_headers,
+                json={
+                    "model_name": "gemini-1.5-flash",
+                    "prompt": collaboration_prompt,
+                    "response_format": {
+                        "type": "json_object",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "suggested_teams": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "team_id": {"type": "string"},
+                                            "agents": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "agent_id": {"type": "string"},
+                                                        "role": {"type": "string"}
+                                                    },
+                                                    "required": ["agent_id", "role"]
+                                                }
+                                            },
+                                            "rationale": {"type": "string"},
+                                            "expected_outcomes": {"type": "array", "items": {"type": "string"}}
+                                        },
+                                        "required": ["team_id", "agents", "rationale"]
+                                    }
+                                },
+                                "external_experts": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "name": {"type": "string"},
+                                            "expertise": {"type": "string"},
+                                            "affiliation": {"type": "string"}
+                                        }
+                                    }
+                                },
+                                "matchmaking_summary": {"type": "string"}
+                            },
+                            "required": ["suggested_teams", "external_experts", "matchmaking_summary"]
+                        }
+                    },
+                    "metadata": {"agent_task_id": agent_task_id, "agent": agent_id}
+                }
+            )
+            llm_response.raise_for_status()
+            llm_result = llm_response.json()
+
+            # Parse the structured LLM response
+            try:
+                collaboration_analysis = llm_result["structured_output"]
+                suggested_collaborations = {
+                    "research_problem": problem_statement,
+                    "suggested_teams": collaboration_analysis.get("suggested_teams", []),
+                    "external_experts": collaboration_analysis.get("external_experts", []),
+                    "matchmaking_summary": collaboration_analysis.get("matchmaking_summary", f"Analysis completed with {len(registered_agents)} available agents."),
+                    "llm_analysis": llm_result.get("response_text", "")
+                }
+            except (KeyError, json.JSONDecodeError) as e:
+                logger.error(f"Failed to parse LLM collaboration response: {e}")
+                # Fallback to basic structure
+                suggested_collaborations = {
+                    "research_problem": problem_statement,
+                    "suggested_teams": [],
+                    "external_experts": [],
+                    "matchmaking_summary": f"LLM analysis failed, but {len(registered_agents)} agents are available.",
+                    "error": str(e)
+                }
 
             # 4. Publish collaboration suggestions as an insight
             insight_name_val = f"Collaboration Suggestion: {db_agent_task.task_description}"
