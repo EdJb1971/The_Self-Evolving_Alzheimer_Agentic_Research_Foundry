@@ -1,18 +1,42 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import List, Optional, Dict, Any
 from datetime import datetime
+import re
 
 # Knowledge Document Schemas
 class KnowledgeDocumentBase(BaseModel):
-    title: str = Field(..., max_length=500)
-    content: str
+    title: str = Field(..., max_length=500, min_length=1)
+    content: str = Field(..., min_length=1)
     document_type: str = Field(..., description="Type: 'research_finding', 'hypothesis', 'validation_result', 'literature_summary'")
-    source_agent: str
+    source_agent: str = Field(..., min_length=1, max_length=100)
     source_task_id: Optional[str] = None
     metadata_json: Optional[Dict[str, Any]] = None
     is_validated: bool = False
-    validation_score: Optional[float] = None
+    validation_score: Optional[float] = Field(None, ge=0.0, le=1.0)
     tags: Optional[List[str]] = None
+
+    @validator('document_type')
+    def validate_document_type(cls, v):
+        allowed_types = ['research_finding', 'hypothesis', 'validation_result', 'literature_summary']
+        if v not in allowed_types:
+            raise ValueError(f'document_type must be one of: {allowed_types}')
+        return v
+
+    @validator('source_agent')
+    def validate_source_agent(cls, v):
+        if not re.match(r'^[a-zA-Z0-9_-]+$', v):
+            raise ValueError('source_agent must contain only alphanumeric characters, underscores, and hyphens')
+        return v
+
+    @validator('tags')
+    def validate_tags(cls, v):
+        if v is not None:
+            for tag in v:
+                if not isinstance(tag, str) or len(tag.strip()) == 0:
+                    raise ValueError('tags must be non-empty strings')
+                if len(tag) > 50:
+                    raise ValueError('individual tags must be 50 characters or less')
+        return v
 
 class KnowledgeDocumentCreate(KnowledgeDocumentBase):
     pass
@@ -30,6 +54,8 @@ class KnowledgeDocumentUpdate(BaseModel):
     is_validated: Optional[bool] = None
     validation_score: Optional[float] = None
     tags: Optional[List[str]] = None
+    version: int = Field(..., description="Current version for optimistic locking")
+    last_modified_by: Optional[str] = None
 
 class KnowledgeDocument(KnowledgeDocumentBase):
     id: int

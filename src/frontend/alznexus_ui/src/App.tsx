@@ -8,6 +8,7 @@ import LLMChat from './components/LLMChat';
 import BiasDetectionPortal from './components/BiasDetectionPortal';
 import ADWorkbenchQueryInterface from './components/ADWorkbenchQueryInterface';
 import AdvancedOrchestratorControls from './components/AdvancedOrchestratorControls';
+import LearningDashboard from './components/LearningDashboard';
 import Settings from './components/Settings';
 import Navbar from './components/Navbar';
 
@@ -27,6 +28,7 @@ function App() {
           <Route path="/bias-detection" element={<BiasDetectionPortal />} />
           <Route path="/ad-workbench" element={<ADWorkbenchQueryInterface />} />
           <Route path="/orchestrator" element={<AdvancedOrchestratorControls />} />
+          <Route path="/learning-dashboard" element={<LearningDashboard />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </div>

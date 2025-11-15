@@ -87,6 +87,15 @@ function Navbar() {
             </Link>
 
             <Link
+              to="/learning-dashboard"
+              className={`text-white hover:text-blue-200 transition-colors ${
+                isActive('/learning-dashboard') ? 'text-blue-200' : ''
+              }`}
+            >
+              Learning Dashboard
+            </Link>
+
+            <Link
               to="/audit-trail"
               className={`text-white hover:text-blue-200 transition-colors ${
                 isActive('/audit-trail') ? 'text-blue-200' : ''

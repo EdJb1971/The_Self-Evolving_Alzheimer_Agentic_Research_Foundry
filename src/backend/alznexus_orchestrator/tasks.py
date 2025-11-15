@@ -10,6 +10,199 @@ from .database import SessionLocal
 from . import crud, schemas
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
+import redis
+from contextlib import contextmanager
+from celery import group, chord
+import redis
+from contextlib import contextmanager
+
+# Redis for distributed locking
+REDIS_URL = os.getenv("ORCHESTRATOR_REDIS_URL", "redis://localhost:6379")
+redis_client = redis.from_url(REDIS_URL, decode_responses=True)
+
+# Circuit breaker state
+circuit_breaker_state = {
+    "failures": 0,
+    "last_failure_time": 0,
+    "state": "CLOSED"  # CLOSED, OPEN, HALF_OPEN
+}
+CIRCUIT_BREAKER_FAILURE_THRESHOLD = 5
+CIRCUIT_BREAKER_TIMEOUT = 60  # seconds
+
+@contextmanager
+def distributed_lock(lock_key: str, timeout: int = 30, blocking_timeout: int = 10):
+    """Distributed lock using Redis for preventing race conditions."""
+    lock_value = f"{os.getpid()}_{time.time()}"
+    lock_acquired = False
+
+    try:
+        # Try to acquire lock
+        lock_acquired = redis_client.set(lock_key, lock_value, ex=timeout, nx=True)
+
+        if not lock_acquired:
+            # Wait for lock with timeout
+            start_time = time.time()
+            while time.time() - start_time < blocking_timeout:
+                if redis_client.set(lock_key, lock_value, ex=timeout, nx=True):
+                    lock_acquired = True
+                    break
+                time.sleep(0.1)
+
+        if not lock_acquired:
+            raise TimeoutError(f"Could not acquire distributed lock for key: {lock_key}")
+
+        yield lock_acquired
+
+    finally:
+        if lock_acquired:
+            # Only release if we still own the lock
+            current_value = redis_client.get(lock_key)
+            if current_value == lock_value:
+                redis_client.delete(lock_key)
+
+def check_circuit_breaker(service_name: str) -> bool:
+    """Check if circuit breaker allows the request."""
+    current_time = time.time()
+
+    if circuit_breaker_state["state"] == "OPEN":
+        if current_time - circuit_breaker_state["last_failure_time"] > CIRCUIT_BREAKER_TIMEOUT:
+            circuit_breaker_state["state"] = "HALF_OPEN"
+            logger.info(f"Circuit breaker for {service_name} moved to HALF_OPEN")
+        else:
+            logger.warning(f"Circuit breaker for {service_name} is OPEN, blocking request")
+            return False
+
+    return True
+
+def record_circuit_breaker_failure(service_name: str):
+    """Record a failure for circuit breaker."""
+    circuit_breaker_state["failures"] += 1
+    circuit_breaker_state["last_failure_time"] = time.time()
+
+    if circuit_breaker_state["failures"] >= CIRCUIT_BREAKER_FAILURE_THRESHOLD:
+        circuit_breaker_state["state"] = "OPEN"
+        logger.warning(f"Circuit breaker for {service_name} opened after {circuit_breaker_state['failures']} failures")
+
+def record_circuit_breaker_success(service_name: str):
+    """Record a success for circuit breaker."""
+    if circuit_breaker_state["state"] == "HALF_OPEN":
+        circuit_breaker_state["state"] = "CLOSED"
+        circuit_breaker_state["failures"] = 0
+        logger.info(f"Circuit breaker for {service_name} closed after successful request")
+
+# Initialize logger
+logger = logging.getLogger(__name__)
+
+@celery_app.task(bind=True, name="execute_single_agent_task")
+def execute_single_agent_task(self, sub_task_data: Dict[str, Any], orchestrator_task_id: int):
+    """Execute a single agent task with proper error handling and circuit breaker."""
+    sub_agent_id = sub_task_data["agent_id"]
+    task_description = sub_task_data["task_description"]
+    task_metadata = sub_task_data.get("task_metadata", {})
+
+    try:
+        # Check circuit breaker before making request
+        if not check_circuit_breaker(sub_agent_id):
+            return {"agent_id": sub_agent_id, "status": "CIRCUIT_OPEN", "error": "Circuit breaker is open"}
+
+        # Get enriched context from autonomous learning service
+        enriched_context = get_enriched_context(sub_agent_id, sub_task_data)
+
+        # Call the sub-agent's execute-task endpoint with timeout
+        agent_task_payload = schemas.AgentTaskCreate(
+            agent_id=sub_agent_id,
+            orchestrator_task_id=orchestrator_task_id,
+            task_description=task_description,
+            metadata_json={**task_metadata, "enriched_context": enriched_context}
+        ).model_dump_json()
+
+        headers = {"X-API-Key": AGENT_API_KEY, "Content-Type": "application/json"}
+        response = requests.post(
+            f"{AGENT_SERVICE_BASE_URL}/agent/{sub_agent_id}/execute-task",
+            headers=headers,
+            data=agent_task_payload,
+            timeout=300  # 5 minute timeout per agent task
+        )
+        response.raise_for_status()
+
+        # Record circuit breaker success
+        record_circuit_breaker_success(sub_agent_id)
+
+        agent_response = response.json()
+
+        # Record agent performance for continuous learning
+        record_agent_performance(sub_agent_id, sub_task_data, {
+            "success": True,
+            "execution_time": agent_response.get("execution_time", 0.0),
+            "accuracy_score": agent_response.get("accuracy_score"),
+            "confidence_score": agent_response.get("confidence_score"),
+            "result": agent_response
+        })
+
+        return {"agent_id": sub_agent_id, "status": "SUCCESS", "response": agent_response}
+
+    except requests.exceptions.Timeout:
+        error_message = f"Timeout calling sub-agent {sub_agent_id}"
+        record_circuit_breaker_failure(sub_agent_id)
+        record_agent_performance(sub_agent_id, sub_task_data, {
+            "success": False,
+            "execution_time": 300.0,  # Max timeout
+            "error": error_message
+        })
+        return {"agent_id": sub_agent_id, "status": "TIMEOUT", "error": error_message}
+
+    except requests.exceptions.RequestException as e:
+        error_message = f"Sub-agent {sub_agent_id} task failed: {e}"
+        record_circuit_breaker_failure(sub_agent_id)
+        record_agent_performance(sub_agent_id, sub_task_data, {
+            "success": False,
+            "execution_time": 0.0,
+            "error": error_message
+        })
+        return {"agent_id": sub_agent_id, "status": "FAILED", "error": error_message}
+
+    except Exception as e:
+        error_message = f"An unexpected error occurred during sub-agent {sub_agent_id} task: {e}"
+        record_circuit_breaker_failure(sub_agent_id)
+        record_agent_performance(sub_agent_id, sub_task_data, {
+            "success": False,
+            "execution_time": 0.0,
+            "error": error_message
+        })
+        return {"agent_id": sub_agent_id, "status": "FAILED", "error": error_message}
+
+@celery_app.task(bind=True, name="process_agent_results")
+def process_agent_results(self, results: List[Dict[str, Any]], orchestrator_task_id: int):
+    """Process results from parallel agent task execution."""
+    db: Session = SessionLocal()
+    try:
+        overall_status = "COMPLETED"
+        failed_count = 0
+
+        for result in results:
+            if result["status"] in ["FAILED", "TIMEOUT", "CIRCUIT_OPEN"]:
+                failed_count += 1
+                overall_status = "FAILED"
+
+        crud.update_orchestrator_task_status(db, orchestrator_task_id, overall_status, {"sub_task_results": results})
+
+        log_audit_event(
+            entity_type="ORCHESTRATOR",
+            entity_id=str(orchestrator_task_id),
+            event_type="SUB_AGENT_COORDINATION_FINISHED",
+            description=f"Sub-agent coordination finished with {len(results)} tasks, {failed_count} failures",
+            metadata={
+                "orchestrator_task_id": orchestrator_task_id,
+                "total_tasks": len(results),
+                "failed_tasks": failed_count,
+                "success_rate": (len(results) - failed_count) / len(results) if results else 0
+            }
+        )
+
+        return {"orchestrator_task_id": orchestrator_task_id, "status": overall_status, "results": results}
+
+    finally:
+        db.close()
 
 ADWORKBENCH_PROXY_URL = os.getenv("ADWORKBENCH_PROXY_URL")
 ADWORKBENCH_API_KEY = os.getenv("ADWORKBENCH_API_KEY")
@@ -21,6 +214,8 @@ AGENT_REGISTRY_URL = os.getenv("AGENT_REGISTRY_URL")
 AGENT_REGISTRY_API_KEY = os.getenv("AGENT_REGISTRY_API_KEY")
 LLM_SERVICE_URL = os.getenv("LLM_SERVICE_URL")
 LLM_API_KEY = os.getenv("LLM_API_KEY")
+AUTONOMOUS_LEARNING_URL = os.getenv("AUTONOMOUS_LEARNING_URL", "http://localhost:8007")
+AUTONOMOUS_LEARNING_API_KEY = os.getenv("AUTONOMOUS_LEARNING_API_KEY", "test_autonomous_key_123")
 
 if not ADWORKBENCH_PROXY_URL or not ADWORKBENCH_API_KEY:
     raise ValueError("ADWORKBENCH_PROXY_URL or ADWORKBENCH_API_KEY environment variables not set.")
@@ -46,6 +241,101 @@ def calculate_backoff_with_jitter(attempt: int, base_delay: float = 1.0, max_del
 
     # Ensure delay is within reasonable bounds
     return min(max(delay_with_jitter, 0.1), max_delay)
+
+def get_enriched_context(agent_id: str, task_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Get enriched context from autonomous learning service for agent task execution."""
+    try:
+        payload = {
+            "task_data": task_data,
+            "task_domain": task_data.get("domain", "general"),
+            "agent_id": agent_id
+        }
+        headers = {"X-API-Key": AUTONOMOUS_LEARNING_API_KEY, "Content-Type": "application/json"}
+        
+        response = requests.post(
+            f"{AUTONOMOUS_LEARNING_URL}/context/enrich/{agent_id}",
+            headers=headers,
+            json=payload,
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            enriched_context = result.get("enriched_context", {})
+            logger.info(f"Retrieved enriched context for agent {agent_id}: {len(str(enriched_context))} chars")
+            return enriched_context
+        else:
+            logger.warning(f"Failed to get enriched context for agent {agent_id}: {response.status_code}")
+            return {}
+            
+    except Exception as e:
+        logger.error(f"Error getting enriched context for agent {agent_id}: {str(e)}")
+        return {}
+
+def record_agent_performance(agent_id: str, task_data: Dict[str, Any], result: Dict[str, Any]):
+    """Record agent performance in autonomous learning service for continuous improvement."""
+    try:
+        performance_data = {
+            "agent_id": agent_id,
+            "task_type": task_data.get("type", "unknown"),
+            "task_id": f"orchestrator_{datetime.utcnow().timestamp()}",
+            "success_rate": 1.0 if result.get("success", False) else 0.0,
+            "execution_time": result.get("execution_time", 0.0),
+            "accuracy_score": result.get("accuracy_score"),
+            "confidence_score": result.get("confidence_score"),
+            "outcome_data": result,
+            "context_used": task_data.get("enriched_context", {}),
+            "feedback_received": {"orchestrator_feedback": True}
+        }
+        
+        headers = {"X-API-Key": AUTONOMOUS_LEARNING_API_KEY, "Content-Type": "application/json"}
+        response = requests.post(
+            f"{AUTONOMOUS_LEARNING_URL}/performance/",
+            headers=headers,
+            json=performance_data,
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            logger.info(f"Recorded performance for agent {agent_id}")
+        else:
+            logger.warning(f"Failed to record performance for agent {agent_id}: {response.status_code}")
+            
+    except Exception as e:
+        logger.error(f"Error recording performance for agent {agent_id}: {str(e)}")
+
+def check_task_deduplication(task_data: Dict[str, Any]) -> bool:
+    """Check if a similar task has been attempted recently and failed, preventing repetition."""
+    try:
+        # Create a task signature for deduplication
+        task_signature = {
+            "task_description": task_data.get("task_description", ""),
+            "agent_id": task_data.get("agent_id", ""),
+            "domain": task_data.get("domain", "general"),
+            "task_type": task_data.get("type", "unknown")
+        }
+        
+        headers = {"X-API-Key": AUTONOMOUS_LEARNING_API_KEY, "Content-Type": "application/json"}
+        response = requests.post(
+            f"{AUTONOMOUS_LEARNING_URL}/task/deduplication/check",
+            headers=headers,
+            json=task_signature,
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            is_duplicate = result.get("is_duplicate", False)
+            if is_duplicate:
+                logger.info(f"Task deduplication: Skipping duplicate task for agent {task_data.get('agent_id')}")
+            return is_duplicate
+        else:
+            logger.warning(f"Failed to check task deduplication: {response.status_code}")
+            return False  # Allow task if deduplication check fails
+            
+    except Exception as e:
+        logger.error(f"Error checking task deduplication: {str(e)}")
+        return False  # Allow task if deduplication check fails
 
 # SEC-SPRINT12-001 & CQ-SPRINT12-007: Removed hardcoded KNOWN_AGENT_IDS.
 # In a real system, this would come from a robust agent registry service with authentication.
@@ -137,89 +427,67 @@ def initiate_daily_scan_task(self, orchestrator_task_id: int):
 
 @celery_app.task(bind=True, name="coordinate_sub_agents_task")
 def coordinate_sub_agents_task(self, orchestrator_task_id: int, sub_agent_tasks_data: List[Dict[str, Any]]):
+    # Use distributed lock to prevent concurrent orchestration of the same task
+    lock_key = f"orchestrator_lock_{orchestrator_task_id}"
+
+    try:
+        with distributed_lock(lock_key, timeout=300):  # 5 minute timeout
+            return _coordinate_sub_agents_task_impl(self, orchestrator_task_id, sub_agent_tasks_data)
+    except TimeoutError:
+        logger.error(f"Could not acquire lock for orchestrator task {orchestrator_task_id}")
+        self.update_state(state='FAILURE', meta={'exc_type': 'TimeoutError', 'exc_message': 'Lock acquisition timeout'})
+        raise
+
+def _coordinate_sub_agents_task_impl(self, orchestrator_task_id: int, sub_agent_tasks_data: List[Dict[str, Any]]):
+    """Implementation of sub-agent coordination using queue-based parallel processing."""
     db: Session = SessionLocal()
-    overall_status = "COMPLETED"
-    results = []
     try:
         crud.update_orchestrator_task_status(db, orchestrator_task_id, "IN_PROGRESS")
         log_audit_event(
             entity_type="ORCHESTRATOR",
             entity_id=str(orchestrator_task_id),
             event_type="SUB_AGENT_COORDINATION_STARTED",
-            description="Master Orchestrator started coordinating tasks for multiple sub-agents.",
+            description="Master Orchestrator started coordinating tasks for multiple sub-agents using parallel queues.",
             metadata={"orchestrator_task_id": orchestrator_task_id, "num_sub_tasks": len(sub_agent_tasks_data)}
         )
 
-        for i, sub_task_data in enumerate(sub_agent_tasks_data):
+        # Filter out duplicate tasks
+        filtered_tasks = []
+        for sub_task_data in sub_agent_tasks_data:
             sub_agent_id = sub_task_data["agent_id"]
             task_description = sub_task_data["task_description"]
-            task_metadata = sub_task_data.get("task_metadata", {})
-            
-            log_audit_event(
-                entity_type="ORCHESTRATOR",
-                entity_id=str(orchestrator_task_id),
-                event_type="DISPATCHING_SUB_AGENT_TASK",
-                description=f"Dispatching task to sub-agent {sub_agent_id}: {task_description}",
-                metadata={"sub_agent_id": sub_agent_id, "task_description": task_description, "orchestrator_task_id": orchestrator_task_id}
-            )
 
-            try:
-                # Call the sub-agent's execute-task endpoint
-                agent_task_payload = schemas.AgentTaskCreate(
-                    agent_id=sub_agent_id,
-                    orchestrator_task_id=orchestrator_task_id,
-                    task_description=task_description,
-                    metadata_json=task_metadata
-                ).model_dump_json()
+            # Check for task deduplication to avoid repeating failed approaches
+            if check_task_deduplication(sub_task_data):
+                log_audit_event(
+                    entity_type="ORCHESTRATOR",
+                    entity_id=str(orchestrator_task_id),
+                    event_type="SUB_AGENT_TASK_SKIPPED",
+                    description=f"Skipped task for sub-agent {sub_agent_id} due to deduplication: {task_description}",
+                    metadata={"sub_agent_id": sub_agent_id, "reason": "task_deduplication"}
+                )
+                continue
 
-                headers = {"X-API-Key": AGENT_API_KEY, "Content-Type": "application/json"}
-                # Assuming a generic AGENT_SERVICE_BASE_URL and agent_id is part of the path
-                response = requests.post(f"{AGENT_SERVICE_BASE_URL}/agent/{sub_agent_id}/execute-task", 
-                                         headers=headers, data=agent_task_payload)
-                response.raise_for_status()
-                agent_response = response.json()
-                results.append({"agent_id": sub_agent_id, "status": "SUCCESS", "response": agent_response})
-                log_audit_event(
-                    entity_type="ORCHESTRATOR",
-                    entity_id=str(orchestrator_task_id),
-                    event_type="SUB_AGENT_TASK_COMPLETED",
-                    description=f"Sub-agent {sub_agent_id} completed its task.",
-                    metadata={"sub_agent_id": sub_agent_id, "agent_response": agent_response}
-                )
-            except requests.exceptions.RequestException as e:
-                error_message = f"Sub-agent {sub_agent_id} task failed: {e}"
-                results.append({"agent_id": sub_agent_id, "status": "FAILED", "error": error_message})
-                overall_status = "FAILED"
-                log_audit_event(
-                    entity_type="ORCHESTRATOR",
-                    entity_id=str(orchestrator_task_id),
-                    event_type="SUB_AGENT_TASK_FAILED",
-                    description=error_message,
-                    metadata={"sub_agent_id": sub_agent_id, "error": error_message}
-                )
-            except Exception as e:
-                error_message = f"An unexpected error occurred during sub-agent {sub_agent_id} task: {e}"
-                results.append({"agent_id": sub_agent_id, "status": "FAILED", "error": error_message})
-                overall_status = "FAILED"
-                log_audit_event(
-                    entity_type="ORCHESTRATOR",
-                    entity_id=str(orchestrator_task_id),
-                    event_type="SUB_AGENT_TASK_FAILED",
-                    description=error_message,
-                    metadata={"sub_agent_id": sub_agent_id, "error": error_message}
-                )
-        
-        crud.update_orchestrator_task_status(db, orchestrator_task_id, overall_status, {"sub_task_results": results})
-        log_audit_event(
-            entity_type="ORCHESTRATOR",
-            entity_id=str(orchestrator_task_id),
-            event_type="SUB_AGENT_COORDINATION_FINISHED",
-            description=f"Master Orchestrator finished coordinating sub-agent tasks with overall status: {overall_status}.",
-            metadata={"orchestrator_task_id": orchestrator_task_id, "overall_status": overall_status, "results_summary": results}
+            filtered_tasks.append(sub_task_data)
+
+        if not filtered_tasks:
+            # All tasks were duplicates
+            crud.update_orchestrator_task_status(db, orchestrator_task_id, "COMPLETED", {"reason": "all_tasks_deduplicated"})
+            return {"orchestrator_task_id": orchestrator_task_id, "status": "COMPLETED", "results": []}
+
+        # Create parallel task group for efficient processing
+        task_group = group(
+            execute_single_agent_task.s(task_data, orchestrator_task_id)
+            for task_data in filtered_tasks
         )
-        return {"orchestrator_task_id": orchestrator_task_id, "overall_status": overall_status, "results": results}
+
+        # Execute tasks in parallel and process results
+        chord_result = chord(task_group)(process_agent_results.s(orchestrator_task_id))
+
+        return chord_result.get()  # Wait for completion and return results
+
     except Exception as e:
-        error_message = f"Overall coordination task failed: {e}"
+        error_message = f"Critical error in sub-agent coordination: {e}"
         crud.update_orchestrator_task_status(db, orchestrator_task_id, "FAILED", {"error": error_message})
         log_audit_event(
             entity_type="ORCHESTRATOR",
@@ -228,7 +496,6 @@ def coordinate_sub_agents_task(self, orchestrator_task_id: int, sub_agent_tasks_
             description=error_message,
             metadata={"orchestrator_task_id": orchestrator_task_id, "error": error_message}
         )
-        self.update_state(state='FAILURE', meta={'exc_type': type(e).__name__, 'exc_message': error_message})
         raise
     finally:
         db.close()

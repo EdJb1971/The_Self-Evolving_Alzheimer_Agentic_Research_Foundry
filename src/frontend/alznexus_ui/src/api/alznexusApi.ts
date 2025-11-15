@@ -7,6 +7,7 @@ const AGENT_REGISTRY_BASE_URL = import.meta.env.VITE_AGENT_REGISTRY_BASE_URL || 
 const LLM_SERVICE_BASE_URL = import.meta.env.VITE_LLM_SERVICE_BASE_URL || 'http://localhost:8005';
 const BIAS_DETECTION_BASE_URL = import.meta.env.VITE_BIAS_DETECTION_BASE_URL || 'http://localhost:8006';
 const ADWORKBENCH_PROXY_BASE_URL = import.meta.env.VITE_ADWORKBENCH_PROXY_BASE_URL || 'http://localhost:8007';
+const AUTONOMOUS_LEARNING_BASE_URL = import.meta.env.VITE_AUTONOMOUS_LEARNING_BASE_URL || 'http://localhost:8008';
 
 const ORCHESTRATOR_API_KEY = import.meta.env.VITE_ORCHESTRATOR_API_KEY;
 const AUDIT_TRAIL_API_KEY = import.meta.env.VITE_AUDIT_TRAIL_API_KEY;
@@ -14,6 +15,7 @@ const AGENT_REGISTRY_API_KEY = import.meta.env.VITE_AGENT_REGISTRY_API_KEY;
 const LLM_API_KEY = import.meta.env.VITE_LLM_API_KEY;
 const BIAS_DETECTION_API_KEY = import.meta.env.VITE_BIAS_DETECTION_API_KEY;
 const ADWORKBENCH_API_KEY = import.meta.env.VITE_ADWORKBENCH_API_KEY;
+const AUTONOMOUS_LEARNING_API_KEY = import.meta.env.VITE_AUTONOMOUS_LEARNING_API_KEY;
 
 // Validation for required environment variables
 const requiredEnvVars = [
@@ -22,7 +24,8 @@ const requiredEnvVars = [
   { key: AGENT_REGISTRY_API_KEY, name: 'VITE_AGENT_REGISTRY_API_KEY' },
   { key: LLM_API_KEY, name: 'VITE_LLM_API_KEY' },
   { key: BIAS_DETECTION_API_KEY, name: 'VITE_BIAS_DETECTION_API_KEY' },
-  { key: ADWORKBENCH_API_KEY, name: 'VITE_ADWORKBENCH_API_KEY' }
+  { key: ADWORKBENCH_API_KEY, name: 'VITE_ADWORKBENCH_API_KEY' },
+  { key: AUTONOMOUS_LEARNING_API_KEY, name: 'VITE_AUTONOMOUS_LEARNING_API_KEY' }
 ];
 
 requiredEnvVars.forEach(({ key, name }) => {
@@ -80,6 +83,14 @@ const adworkbenchProxyApi = axios.create({
   baseURL: ADWORKBENCH_PROXY_BASE_URL,
   headers: {
     'X-API-Key': ADWORKBENCH_API_KEY,
+    'Content-Type': 'application/json',
+  },
+});
+
+const autonomousLearningApi = axios.create({
+  baseURL: AUTONOMOUS_LEARNING_BASE_URL,
+  headers: {
+    'X-API-Key': AUTONOMOUS_LEARNING_API_KEY,
     'Content-Type': 'application/json',
   },
 });
@@ -268,6 +279,71 @@ export const getSystemHealth = async () => {
   }
 };
 
+// Autonomous Learning API functions
+export const getLearningMetrics = async () => {
+  try {
+    const response = await autonomousLearningApi.get('/metrics/');
+    return response.data;
+  } catch (error) {
+    handleApiError(error as AxiosError, 'getLearningMetrics');
+  }
+};
+
+export const getAgentPerformance = async (agentId?: string) => {
+  try {
+    const url = agentId ? `/performance/${agentId}` : '/performance/';
+    const response = await autonomousLearningApi.get(url);
+    return response.data;
+  } catch (error) {
+    handleApiError(error as AxiosError, 'getAgentPerformance');
+  }
+};
+
+export const getLearningPatterns = async () => {
+  try {
+    const response = await autonomousLearningApi.get('/patterns/');
+    return response.data;
+  } catch (error) {
+    handleApiError(error as AxiosError, 'getLearningPatterns');
+  }
+};
+
+export const getKnowledgeGrowth = async () => {
+  try {
+    const response = await autonomousLearningApi.get('/knowledge/growth');
+    return response.data;
+  } catch (error) {
+    handleApiError(error as AxiosError, 'getKnowledgeGrowth');
+  }
+};
+
+export const getSelfEvolutionStatus = async () => {
+  try {
+    const response = await autonomousLearningApi.get('/evolution/status');
+    return response.data;
+  } catch (error) {
+    handleApiError(error as AxiosError, 'getSelfEvolutionStatus');
+  }
+};
+
+export const getPredictivePerformance = async (agentId: string) => {
+  try {
+    const response = await autonomousLearningApi.get(`/predictive/performance/${agentId}`);
+    return response.data;
+  } catch (error) {
+    handleApiError(error as AxiosError, 'getPredictivePerformance');
+  }
+};
+
+export const getEvolutionTrajectory = async () => {
+  try {
+    const response = await autonomousLearningApi.get('/evolution/trajectory');
+    return response.data;
+  } catch (error) {
+    handleApiError(error as AxiosError, 'getEvolutionTrajectory');
+  }
+};
+
 // TypeScript interfaces
 
 // Orchestrator types
@@ -437,4 +513,75 @@ export interface HealthStatus {
   status: 'healthy' | 'unhealthy';
   details?: any;
   error?: string;
+}
+
+// Autonomous Learning types
+export interface LearningMetrics {
+  total_patterns_extracted: number;
+  total_context_enrichments: number;
+  average_confidence_score: number;
+  knowledge_growth_rate: number;
+  last_updated: string;
+  active_learning_cycles: number;
+}
+
+export interface AgentPerformance {
+  agent_id: string;
+  total_tasks: number;
+  success_rate: number;
+  average_execution_time: number;
+  average_accuracy: number;
+  average_confidence: number;
+  last_performance_update: string;
+  learning_trend: 'improving' | 'stable' | 'declining';
+}
+
+export interface LearningPattern {
+  id: number;
+  pattern_type: string;
+  pattern_description: string;
+  success_rate: number;
+  application_count: number;
+  last_applied: string;
+  discovered_from: any[];
+  created_at: string;
+}
+
+export interface KnowledgeGrowth {
+  total_documents: number;
+  total_chunks: number;
+  vector_dimensions: number;
+  growth_rate_per_day: number;
+  quality_score_trend: number[];
+  timestamps: string[];
+}
+
+export interface SelfEvolutionStatus {
+  evolution_phase: string;
+  learning_effectiveness: number;
+  adaptation_rate: number;
+  knowledge_utilization: number;
+  self_improvement_metrics: {
+    pattern_recognition_accuracy: number;
+    context_enrichment_quality: number;
+    task_success_prediction: number;
+  };
+  last_evolution_cycle: string;
+}
+
+export interface PredictivePerformance {
+  agent_id: string;
+  agent_name: string;
+  predicted_success_rate: number;
+  confidence: number;
+  expected_improvement: number;
+  prediction_timestamp: string;
+}
+
+export interface EvolutionTrajectory {
+  current_phase: string;
+  progress_percentage: number;
+  next_milestone: string;
+  estimated_completion: string;
+  trajectory_timestamp: string;
 }

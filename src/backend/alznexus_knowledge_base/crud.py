@@ -99,24 +99,70 @@ def update_knowledge_document(
     document_id: int,
     updates: schemas.KnowledgeDocumentUpdate
 ) -> Optional[models.KnowledgeDocument]:
-    """Update a knowledge document."""
-    db_document = get_knowledge_document(db, document_id)
+    """Update a knowledge document with optimistic locking."""
+    # Get the document with version check for optimistic locking
+    db_document = db.query(models.KnowledgeDocument).filter(
+        models.KnowledgeDocument.id == document_id
+    ).first()
+
     if not db_document:
         return None
 
+    # Check optimistic locking version
+    if db_document.version != updates.version:
+        # Version mismatch - concurrent modification detected
+        raise ValueError(f"Optimistic locking failed: document version {db_document.version} does not match expected version {updates.version}")
+
     update_data = updates.dict(exclude_unset=True)
+    update_data.pop('version', None)  # Don't update version directly
+
+    # Increment version for optimistic locking
+    update_data['version'] = db_document.version + 1
+    update_data['updated_at'] = datetime.utcnow()
+
     for field, value in update_data.items():
-        setattr(db_document, field, value)
+        if hasattr(db_document, field):
+            setattr(db_document, field, value)
 
-    db.commit()
-    db.refresh(db_document)
-    return db_document
+    try:
+        db.commit()
+        db.refresh(db_document)
 
-def delete_knowledge_document(db: Session, document_id: int) -> bool:
+        # Log the update with version info
+        create_knowledge_update(
+            db,
+            schemas.KnowledgeUpdateCreate(
+                operation_type="update",
+                document_id=db_document.id,
+                change_description=f"Updated {db_document.document_type} document: {db_document.title} (version {db_document.version})",
+                performed_by=updates.last_modified_by or "system",
+                old_metadata={"version": db_document.version - 1},
+                new_metadata={"version": db_document.version}
+            )
+        )
+
+        return db_document
+    except Exception as e:
+        db.rollback()
+        raise e
+
+def delete_knowledge_document(db: Session, document_id: int, deleted_by: str = "system") -> bool:
     """Delete a knowledge document."""
     db_document = get_knowledge_document(db, document_id)
     if not db_document:
         return False
+
+    # Log the deletion before removing
+    create_knowledge_update(
+        db,
+        schemas.KnowledgeUpdateCreate(
+            operation_type="delete",
+            document_id=db_document.id,
+            change_description=f"Deleted {db_document.document_type} document: {db_document.title} (version {db_document.version})",
+            performed_by=deleted_by,
+            old_metadata={"title": db_document.title, "document_type": db_document.document_type, "version": db_document.version}
+        )
+    )
 
     db.delete(db_document)
     db.commit()

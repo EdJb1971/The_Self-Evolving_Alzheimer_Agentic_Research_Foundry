@@ -566,6 +566,158 @@ async def update_all_contexts(
     background_tasks.add_task(context_enricher.update_all_contexts, db)
     return {"message": "Context updates triggered"}
 
+# Advanced Self-Evolution Metrics Endpoints
+@app.get("/metrics/")
+async def get_learning_metrics(db: Session = Depends(database.get_db)):
+    """Get comprehensive learning metrics for self-evolution tracking"""
+    try:
+        # Get pattern extraction stats
+        total_patterns = crud.get_total_patterns(db)
+
+        # Get context enrichment stats
+        total_enrichments = crud.get_total_context_enrichments(db)
+
+        # Calculate average confidence score
+        avg_confidence = crud.get_average_confidence_score(db)
+
+        # Calculate knowledge growth rate
+        growth_rate = crud.get_knowledge_growth_rate(db)
+
+        # Get active learning cycles
+        active_cycles = crud.get_active_learning_cycles(db)
+
+        return {
+            "total_patterns_extracted": total_patterns,
+            "total_context_enrichments": total_enrichments,
+            "average_confidence_score": avg_confidence,
+            "knowledge_growth_rate": growth_rate,
+            "active_learning_cycles": active_cycles,
+            "last_updated": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting learning metrics: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve learning metrics")
+
+@app.get("/evolution/status")
+async def get_self_evolution_status(db: Session = Depends(database.get_db)):
+    """Get genuine self-evolution status and metrics"""
+    try:
+        # Calculate learning effectiveness (patterns successfully applied / total patterns)
+        learning_effectiveness = crud.get_learning_effectiveness(db)
+
+        # Calculate adaptation rate (how quickly agents adapt to new patterns)
+        adaptation_rate = crud.get_adaptation_rate(db)
+
+        # Calculate knowledge utilization (how much learned knowledge is being used)
+        knowledge_utilization = crud.get_knowledge_utilization(db)
+
+        # Get self-improvement metrics
+        improvement_metrics = crud.get_self_improvement_metrics(db)
+
+        # Determine current evolution phase
+        evolution_phase = crud.determine_evolution_phase(db)
+
+        return {
+            "evolution_phase": evolution_phase,
+            "learning_effectiveness": learning_effectiveness,
+            "adaptation_rate": adaptation_rate,
+            "knowledge_utilization": knowledge_utilization,
+            "self_improvement_metrics": improvement_metrics,
+            "last_evolution_cycle": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting evolution status: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve evolution status")
+
+@app.get("/knowledge/growth")
+async def get_knowledge_growth(db: Session = Depends(database.get_db)):
+    """Get knowledge base growth visualization data"""
+    try:
+        # Get knowledge base statistics
+        total_documents = crud.get_total_knowledge_documents(db)
+        total_chunks = crud.get_total_knowledge_chunks(db)
+        vector_dimensions = crud.get_vector_dimensions(db)
+
+        # Calculate growth rate per day
+        growth_rate = crud.get_daily_growth_rate(db)
+
+        # Get quality score trend (last 30 days)
+        quality_trend = crud.get_quality_score_trend(db, days=30)
+        timestamps = crud.get_quality_timestamps(db, days=30)
+
+        return {
+            "total_documents": total_documents,
+            "total_chunks": total_chunks,
+            "vector_dimensions": vector_dimensions,
+            "growth_rate_per_day": growth_rate,
+            "quality_score_trend": quality_trend,
+            "timestamps": timestamps
+        }
+    except Exception as e:
+        logger.error(f"Error getting knowledge growth: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve knowledge growth data")
+
+@app.get("/predictive/performance/{agent_id}")
+async def get_predictive_performance(
+    agent_id: str,
+    db: Session = Depends(database.get_db)
+):
+    """Get predictive performance modeling for an agent"""
+    try:
+        # Get historical performance data
+        historical_data = crud.get_agent_performance_history(db, agent_id, limit=50)
+
+        # Calculate performance trends
+        performance_trend = crud.calculate_performance_trend(historical_data)
+
+        # Predict future performance
+        predicted_performance = crud.predict_future_performance(historical_data)
+
+        # Get confidence intervals
+        confidence_intervals = crud.calculate_confidence_intervals(historical_data)
+
+        # Identify performance bottlenecks
+        bottlenecks = crud.identify_performance_bottlenecks(historical_data)
+
+        return {
+            "agent_id": agent_id,
+            "current_performance_trend": performance_trend,
+            "predicted_performance": predicted_performance,
+            "confidence_intervals": confidence_intervals,
+            "identified_bottlenecks": bottlenecks,
+            "prediction_timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting predictive performance for {agent_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve predictive performance data")
+
+@app.get("/evolution/trajectory")
+async def get_evolution_trajectory(db: Session = Depends(database.get_db)):
+    """Get the complete evolution trajectory of the system"""
+    try:
+        # Get evolution milestones
+        milestones = crud.get_evolution_milestones(db)
+
+        # Get capability progression
+        capability_progression = crud.get_capability_progression(db)
+
+        # Get learning curve data
+        learning_curve = crud.get_learning_curve_data(db)
+
+        # Calculate evolution velocity
+        evolution_velocity = crud.calculate_evolution_velocity(db)
+
+        return {
+            "evolution_milestones": milestones,
+            "capability_progression": capability_progression,
+            "learning_curve": learning_curve,
+            "evolution_velocity": evolution_velocity,
+            "trajectory_timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting evolution trajectory: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve evolution trajectory")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8006)
