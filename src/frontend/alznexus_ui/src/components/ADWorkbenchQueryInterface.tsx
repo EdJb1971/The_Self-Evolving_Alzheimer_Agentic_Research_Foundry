@@ -4,8 +4,7 @@ import {
   getADWorkbenchQueries,
   getADWorkbenchQuery,
   ADWorkbenchQueryRequest,
-  ADWorkbenchQuery,
-  ADWorkbenchResult
+  ADWorkbenchQuery
 } from '../api/alznexusApi';
 import { AxiosError } from 'axios';
 
@@ -51,10 +50,12 @@ function ADWorkbenchQueryInterface() {
         include_metadata: true
       };
 
-      const response: ADWorkbenchResult = await submitADWorkbenchQuery(request);
+      const response = await submitADWorkbenchQuery(request);
 
-      // Add the new query to the list
-      setQueries(prev => [response.query, ...prev]);
+      if (response?.query) {
+        // Add the new query to the list
+        setQueries(prev => [response.query, ...prev]);
+      }
 
       // Clear form
       setQuery('');
@@ -115,6 +116,7 @@ function ADWorkbenchQueryInterface() {
                 value={queryType}
                 onChange={(e) => setQueryType(e.target.value as 'federated' | 'direct' | 'meta_analysis')}
                 className="input-field"
+                aria-label="Query Type"
               >
                 <option value="federated">Federated Query</option>
                 <option value="direct">Direct Query</option>
@@ -196,7 +198,7 @@ function ADWorkbenchQueryInterface() {
                     </span>
                   </div>
                   <p className="text-sm text-gray-600 mb-2 line-clamp-2">
-                    {q.query_text}
+                    {q.query}
                   </p>
                   <div className="flex items-center justify-between text-xs text-gray-500">
                     <span>{q.data_sources?.join(', ') || 'All sources'}</span>
@@ -247,7 +249,7 @@ function ADWorkbenchQueryInterface() {
                 <div>
                   <h4 className="font-medium mb-2">Query</h4>
                   <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-sm font-mono">{selectedQuery.query_text}</p>
+                    <p className="text-sm font-mono">{selectedQuery.query}</p>
                   </div>
                 </div>
 

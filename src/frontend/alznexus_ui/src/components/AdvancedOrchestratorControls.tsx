@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   getOrchestratorStatus,
   getActiveTasks,
@@ -6,10 +6,8 @@ import {
   resolveDebate,
   cancelTask,
   OrchestratorStatus,
-  Task,
-  DebateResolution
+  Task
 } from '../api/alznexusApi';
-import { AxiosError } from 'axios';
 
 function AdvancedOrchestratorControls() {
   const [status, setStatus] = useState<OrchestratorStatus | null>(null);
@@ -44,7 +42,7 @@ function AdvancedOrchestratorControls() {
 
   const viewTaskDetails = async (taskId: string) => {
     try {
-      const taskDetails = await getTaskDetails(taskId);
+      const taskDetails = await getTaskDetails(Number(taskId));
       setSelectedTask(taskDetails);
       setShowTaskModal(true);
     } catch (err) {
@@ -56,7 +54,7 @@ function AdvancedOrchestratorControls() {
     if (!confirm('Are you sure you want to cancel this task?')) return;
 
     try {
-      await cancelTask(taskId);
+      await cancelTask(Number(taskId));
       await loadOrchestratorData(); // Refresh data
     } catch (err) {
       setError('Failed to cancel task');
@@ -73,13 +71,12 @@ function AdvancedOrchestratorControls() {
 
     setLoading(true);
     try {
-      const resolution: DebateResolution = {
-        task_id: debateTaskId,
+      const resolution = {
         resolution: debateResolution,
         resolved_by: 'user'
       };
 
-      await resolveDebate(resolution);
+      await resolveDebate(Number(debateTaskId), resolution);
       setShowDebateModal(false);
       setDebateResolution('');
       setDebateTaskId('');
@@ -214,7 +211,7 @@ function AdvancedOrchestratorControls() {
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-medium text-sm">
-                      Task {task.id.slice(-8)}
+                      Task {task.id}
                     </span>
                     <div className="flex items-center space-x-2">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTaskStatusColor(task.status)}`}>
@@ -222,7 +219,7 @@ function AdvancedOrchestratorControls() {
                       </span>
                       {task.status === 'debate' && (
                         <button
-                          onClick={() => handleResolveDebate(task.id)}
+                          onClick={() => handleResolveDebate(task.id.toString())}
                           className="text-xs bg-purple-600 text-white px-2 py-1 rounded hover:bg-purple-700"
                         >
                           Resolve
@@ -232,8 +229,8 @@ function AdvancedOrchestratorControls() {
                   </div>
 
                   <div className="mb-2">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getAgentTypeColor(task.agent_type)}`}>
-                      {task.agent_type.replace('_', ' ')}
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getAgentTypeColor(task.agent_type || 'unknown')}`}>
+                      {(task.agent_type || 'unknown').replace('_', ' ')}
                     </span>
                   </div>
 
@@ -245,14 +242,14 @@ function AdvancedOrchestratorControls() {
                     <span>Started: {new Date(task.created_at).toLocaleTimeString()}</span>
                     <div className="space-x-2">
                       <button
-                        onClick={() => viewTaskDetails(task.id)}
+                        onClick={() => viewTaskDetails(task.id.toString())}
                         className="text-blue-600 hover:text-blue-800"
                       >
                         Details
                       </button>
                       {task.status === 'running' && (
                         <button
-                          onClick={() => handleCancelTask(task.id)}
+                          onClick={() => handleCancelTask(task.id.toString())}
                           className="text-red-600 hover:text-red-800"
                         >
                           Cancel
@@ -297,8 +294,8 @@ function AdvancedOrchestratorControls() {
                   </div>
                   <div>
                     <span className="text-sm font-medium text-gray-500">Agent Type</span>
-                    <p className={`text-sm font-medium ${getAgentTypeColor(selectedTask.agent_type)}`}>
-                      {selectedTask.agent_type.replace('_', ' ')}
+                    <p className={`text-sm font-medium ${getAgentTypeColor(selectedTask.agent_type || 'unknown')}`}>
+                      {(selectedTask.agent_type || 'unknown').replace('_', ' ')}
                     </p>
                   </div>
                 </div>
@@ -331,7 +328,7 @@ function AdvancedOrchestratorControls() {
                       <div className="space-y-1 text-sm font-mono">
                         {selectedTask.logs.map((log, index) => (
                           <div key={index} className="text-gray-700">
-                            <span className="text-gray-500">[{new Date(log.timestamp).toLocaleTimeString()}]</span> {log.message}
+                            {log}
                           </div>
                         ))}
                       </div>

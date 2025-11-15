@@ -101,10 +101,11 @@ function BiasDetectionPortal() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="analysis-type" className="block text-sm font-medium text-gray-700 mb-1">
                 Analysis Type
               </label>
               <select
+                id="analysis-type"
                 value={analysisType}
                 onChange={(e) => setAnalysisType(e.target.value as 'text' | 'dataset' | 'model')}
                 className="input-field"
@@ -171,12 +172,12 @@ function BiasDetectionPortal() {
                     <span className="font-medium text-sm">
                       {report.analysis_type.charAt(0).toUpperCase() + report.analysis_type.slice(1)} Analysis
                     </span>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getBiasLevelColor(report.bias_level)}`}>
-                      {getBiasLevelIcon(report.bias_level)} {report.bias_level}
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getBiasLevelColor(report.bias_level || 'low')}`}>
+                      {getBiasLevelIcon(report.bias_level || 'low')} {report.bias_level || 'low'}
                     </span>
                   </div>
                   <p className="text-sm text-gray-600 mb-2 line-clamp-2">
-                    {report.content_preview}
+                    {report.content_preview || 'No preview available'}
                   </p>
                   <div className="text-xs text-gray-500">
                     {new Date(report.created_at).toLocaleDateString()}
@@ -212,8 +213,8 @@ function BiasDetectionPortal() {
                   </div>
                   <div>
                     <span className="text-sm font-medium text-gray-500">Bias Level</span>
-                    <p className={`text-sm font-medium ${getBiasLevelColor(selectedReport.bias_level)}`}>
-                      {selectedReport.bias_level}
+                    <p className={`text-sm font-medium ${getBiasLevelColor(selectedReport.bias_level || 'low')}`}>
+                      {selectedReport.bias_level || 'low'}
                     </p>
                   </div>
                   <div>
@@ -226,7 +227,7 @@ function BiasDetectionPortal() {
                 <div>
                   <h4 className="font-medium mb-2">Content Analyzed</h4>
                   <div className="bg-gray-50 p-4 rounded-lg max-h-32 overflow-y-auto">
-                    <p className="text-sm">{selectedReport.content_preview}</p>
+                    <p className="text-sm">{selectedReport.content_preview || 'No preview available'}</p>
                   </div>
                 </div>
 
@@ -234,15 +235,21 @@ function BiasDetectionPortal() {
                 <div>
                   <h4 className="font-medium mb-2">Bias Categories Detected</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {selectedReport.bias_categories.map((category, index) => (
-                      <div key={index} className="bg-red-50 border border-red-200 rounded-lg p-3">
-                        <div className="font-medium text-red-800">{category.name}</div>
-                        <div className="text-sm text-red-600">{category.description}</div>
-                        <div className="text-xs text-red-500 mt-1">
-                          Confidence: {(category.confidence * 100).toFixed(1)}%
+                    {selectedReport.bias_categories && selectedReport.bias_categories.length > 0 ? (
+                      selectedReport.bias_categories.map((category, index) => (
+                        <div key={index} className="bg-red-50 border border-red-200 rounded-lg p-3">
+                          <div className="font-medium text-red-800">{category.name}</div>
+                          <div className="text-sm text-red-600">{category.description}</div>
+                          <div className="text-xs text-red-500 mt-1">
+                            Confidence: {(category.confidence * 100).toFixed(1)}%
+                          </div>
                         </div>
+                      ))
+                    ) : (
+                      <div className="col-span-full text-center text-gray-500 py-4">
+                        No bias categories detected
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
 

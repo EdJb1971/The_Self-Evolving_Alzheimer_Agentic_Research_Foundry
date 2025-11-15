@@ -88,6 +88,7 @@ function LLMChat() {
               value={model}
               onChange={(e) => setModel(e.target.value)}
               className="input-field"
+              aria-label="LLM Model Selection"
             >
               <option value="gpt-4">GPT-4</option>
               <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
@@ -106,6 +107,7 @@ function LLMChat() {
               value={temperature}
               onChange={(e) => setTemperature(parseFloat(e.target.value))}
               className="input-field"
+              aria-label="Temperature setting for LLM response creativity"
             />
           </div>
           <div>
@@ -119,6 +121,7 @@ function LLMChat() {
               value={maxTokens}
               onChange={(e) => setMaxTokens(parseInt(e.target.value))}
               className="input-field"
+              aria-label="Maximum tokens for LLM response length"
             />
           </div>
         </div>

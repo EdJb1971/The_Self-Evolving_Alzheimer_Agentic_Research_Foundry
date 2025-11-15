@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { AxiosError } from 'axios';
 
 interface APIKey {
   service: string;
@@ -235,6 +234,7 @@ function Settings() {
                 value={theme}
                 onChange={(e) => setTheme(e.target.value as 'light' | 'dark')}
                 className="input-field"
+                aria-label="Application theme selection"
               >
                 <option value="light">Light</option>
                 <option value="dark">Dark</option>

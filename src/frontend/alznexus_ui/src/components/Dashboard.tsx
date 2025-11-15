@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { getSystemHealth, HealthStatus, getRegisteredAgents, AgentListResponse } from '../api/alznexusApi';
+import { useState, useEffect } from 'react';
+import { getSystemHealth, HealthStatus, getRegisteredAgents } from '../api/alznexusApi';
 import { AxiosError } from 'axios';
 
 function Dashboard() {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { getRegisteredAgents, getAgentDetails, AgentDetails } from '../api/alznexusApi';
 import { AxiosError } from 'axios';
 
@@ -105,6 +105,7 @@ function AgentRegistry() {
                 <button
                   onClick={() => setSelectedAgent(null)}
                   className="text-gray-400 hover:text-gray-600"
+                  aria-label="Close agent details"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
