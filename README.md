@@ -244,6 +244,7 @@ pip install -r src/backend/alznexus_audit_trail/requirements.txt
 pip install -r src/backend/alznexus_llm_service/requirements.txt
 pip install -r src/backend/alznexus_adworkbench_proxy/requirements.txt
 pip install -r src/backend/alznexus_statistical_engine/requirements.txt
+pip install -r src/backend/alznexus_autonomous_learning/requirements.txt
 
 # Install Node.js dependencies
 cd src/frontend/alznexus_ui
@@ -332,6 +333,19 @@ AUDIT_TRAIL_URL=http://localhost:8003
 AUDIT_API_KEY=test_audit_key
 ```
 
+**`src/backend/alznexus_autonomous_learning/.env`:**
+```env
+# Autonomous Learning Service Environment Variables
+DATABASE_URL=sqlite:///./test_autonomous.db
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/0
+API_KEY=test_autonomous_key_123
+REDIS_URL=redis://localhost:6379
+ORCHESTRATOR_API_URL=http://localhost:8001
+AGENT_SERVICE_BASE_URL=http://localhost:8001
+AGENT_API_KEY=test_agent_key
+```
+
 #### 4. Start Redis Server
 Ensure Redis is running locally:
 ```bash
@@ -387,8 +401,15 @@ cd src/backend
 uvicorn alznexus_statistical_engine.main:app --host 0.0.0.0 --port 8006 --reload
 ```
 
+**Terminal 7 - Autonomous Learning Service (Port 8007):**
+```bash
+& ".\alznexus_env\Scripts\activate"
+cd src/backend
+uvicorn alznexus_autonomous_learning.main:app --host 0.0.0.0 --port 8007 --reload
+```
+
 #### 6. Start Frontend
-**Terminal 7 - Frontend (Port 3000):**
+**Terminal 8 - Frontend (Port 3000):**
 ```bash
 cd src/frontend/alznexus_ui
 npm run dev

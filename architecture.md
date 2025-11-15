@@ -39,6 +39,7 @@ AlzNexus is a self-evolving agentic research foundry designed to accelerate Alzh
 - **alznexus_statistical_engine**: Comprehensive statistical analysis service providing correlation analysis, hypothesis testing, effect sizes, power analysis, and data quality assessment.
 - **alznexus_uncertainty_service**: Advanced uncertainty quantification and error bounds calculation for scientific research outputs. Implements Bayesian neural networks (PyMC3), Monte Carlo dropout ensembles (TensorFlow), physics-informed neural networks (DeepXDE) for Alzheimer's disease modeling, and clinical risk assessment frameworks. Provides publication-ready confidence intervals, false positive rate estimation, and decision confidence scoring for all research predictions.
 - **alznexus_reproducibility_service**: Ensures scientific reproducibility through random seed management, data provenance tracking, analysis snapshots, and validation frameworks.
+- **alznexus_autonomous_learning**: Self-evolving learning and feedback system that tracks agent performance, extracts learning patterns, enriches agent contexts with learned data, and maintains feedback loops for continuous improvement. Implements reinforcement learning for research strategy optimization, active learning for intelligent data acquisition, and persistent agent memory systems.
 
 ### Frontend Application (alznexus_ui)
 - **QuerySubmission**: Interface for users to submit research queries or data requests.
@@ -65,6 +66,8 @@ LLM Service (FastAPI)
     ↓ (ethical LLM calls for reasoning/analysis)
 Bias Detection Service (FastAPI + Celery)
     ↓ (bias analysis on data/agent outputs)
+Autonomous Learning Service (FastAPI + Celery)
+    ↓ (performance tracking, pattern extraction, context enrichment)
 Audit Trail Service (FastAPI)
     ← (logs all events from all services)
 ```
@@ -74,7 +77,8 @@ Audit Trail Service (FastAPI)
 2. **Agent Coordination**: Orchestrator assigns tasks to registered agents → agents execute tasks asynchronously (query data, analyze via LLM, log results).
 3. **Bias Monitoring**: All agent outputs and data inputs routed to bias detection service for LLM-powered analysis.
 4. **Self-Correction**: Orchestrator analyzes audit logs and agent reflections → proposes adaptations and new goals.
-5. **Audit Logging**: Every action across services logged to audit trail for compliance and performance analysis.
+5. **Autonomous Learning**: Agent performance data flows to autonomous learning service → patterns extracted and contexts enriched → improved agent performance in future tasks.
+6. **Audit Logging**: Every action across services logged to audit trail for compliance and performance analysis.
 
 ## Data Models
 - **Research Goals**: Text-based goals with status tracking (ACTIVE/COMPLETED/ARCHIVED).
