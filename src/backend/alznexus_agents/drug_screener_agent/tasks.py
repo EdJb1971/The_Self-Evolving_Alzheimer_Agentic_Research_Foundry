@@ -81,17 +81,26 @@ def screen_drugs_task(self, agent_task_id: int):
         query_status_response = adworkbench_response.json()
         adworkbench_query_id = query_status_response["id"]
 
-        # Simulate waiting for AD Workbench query to complete
-        time.sleep(8) 
-        query_result_response = requests.get(
-            f"{ADWORKBENCH_PROXY_URL}/adworkbench/query/{adworkbench_query_id}/status",
-            headers=adworkbench_headers
-        )
-        query_result_response.raise_for_status()
-        final_query_status = query_result_response.json()
+        # Poll for AD Workbench query completion asynchronously
+        max_polls = 60  # 5 minutes max
+        poll_count = 0
+        while poll_count < max_polls:
+            time.sleep(5)  # Poll every 5 seconds
+            query_result_response = requests.get(
+                f"{ADWORKBENCH_PROXY_URL}/adworkbench/query/{adworkbench_query_id}/status",
+                headers=adworkbench_headers
+            )
+            query_result_response.raise_for_status()
+            final_query_status = query_result_response.json()
+
+            if final_query_status["status"] == "COMPLETED":
+                break
+            elif final_query_status["status"] == "FAILED":
+                raise Exception(f"AD Workbench query for drug screening data failed: {final_query_status.get('message', 'Unknown error')}")
+            poll_count += 1
 
         if final_query_status["status"] != "COMPLETED":
-            raise Exception(f"AD Workbench query for drug screening data failed or timed out: {final_query_status['status']}")
+            raise Exception("AD Workbench query for drug screening data timed out")
         
         # SEC-002-DSA: Validate size of result_data before parsing to prevent DoS
         result_data_str = final_query_status["result_data"]

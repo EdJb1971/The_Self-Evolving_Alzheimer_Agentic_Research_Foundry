@@ -23,11 +23,11 @@ AlzNexus is a self-evolving agentic research foundry designed to accelerate Alzh
 - **biomarker_hunter_agent**: Identifies novel biomarkers for early AD progression through data analysis and AD Workbench queries with LLM-powered insights.
 - **collaboration_matchmaker_agent**: Suggests optimal multi-agent teams or external experts for complex research problems.
 - **data_harmonizer_agent**: Aligns schemas from disparate studies to ensure data consistency and interoperability.
-- **drug_screener_agent**: Screens potential drug candidates against disease pathways and target profiles.
+- **drug_screener_agent**: Screens potential drug candidates against disease pathways and target profiles using real molecular analysis.
 - **hypothesis_validator_agent**: Evaluates research hypotheses against supporting data for statistical significance and biological plausibility.
 - **literature_bridger_agent**: Scans scientific literature, extracts key information, and synthesizes connections between research areas.
-- **pathway_modeler_agent**: Constructs and simulates novel disease progression models (currently empty/placeholder).
-- **trial_optimizer_agent**: Designs and optimizes clinical trial protocols (currently empty/placeholder).
+- **pathway_modeler_agent**: Constructs and simulates novel disease progression models using physics-informed neural networks.
+- **trial_optimizer_agent**: Designs and optimizes clinical trial protocols using statistical analysis and machine learning.
 
 #### Supporting Services
 - **alznexus_adworkbench_proxy**: Secure gateway for privacy-preserving federated queries to AD Workbench data sources.
