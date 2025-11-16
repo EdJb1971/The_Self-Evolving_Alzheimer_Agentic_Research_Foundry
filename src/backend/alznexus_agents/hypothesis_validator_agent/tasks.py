@@ -448,26 +448,195 @@ def perform_reflection_task(self, agent_id: str, reflection_metadata: dict):
         audit_history = audit_history_response.json().get("history", [])
         recent_audit_events = [e for e in audit_history if datetime.fromisoformat(e['timestamp'].replace('Z', '+00:00')) > (datetime.utcnow() - timedelta(days=7))]
 
-        # CQ-SPRINT12-003: Placeholder for actual analysis/LLM interaction
-        # TODO: Implement the actual logic for analyzing recent tasks and audit events, potentially using LLMs
-        # for generating insights and proposed adjustments during self-reflection.
-        # For now, a simulated outcome is generated.
-        # time.sleep(5)
-        analysis_outcome = f"Agent {agent_id} reviewed {task_summary['total_tasks']} tasks in the last 7 days. " \
-                           f"Completed: {task_summary['completed']}, Failed: {task_summary['failed']}. " \
-                           "Identified potential for improved data source selection and more robust error handling in hypothesis validation."
-        
-        proposed_adjustments = [
-            "Refine statistical models for hypothesis testing.",
-            "Expand search for contradictory evidence across more diverse datasets.",
-            "Improve prompt engineering for LLM-based plausibility checks."
-        ]
+        # CQ-SPRINT12-003: Implement LLM-powered reflection analysis
+        reflection_prompt = f"""Analyze the recent performance of an Alzheimer's disease hypothesis validation agent and provide insights for improvement.
+
+Agent Performance Data:
+- Total tasks in last 7 days: {task_summary['total_tasks']}
+- Completed tasks: {task_summary['completed']}
+- Failed tasks: {task_summary['failed']}
+- Pending tasks: {task_summary['pending']}
+- Recent audit events: {len(recent_audit_events)}
+
+Recent Tasks Summary:
+{chr(10).join([f"- {task.task_description[:100]}... (Status: {task.status})" for task in recent_tasks[:5]])}
+
+Recent Audit Events:
+{chr(10).join([f"- {event.event_type}: {event.description[:100]}..." for event in recent_audit_events[:5]])}
+
+Agent Metadata: {reflection_metadata}
+
+Please analyze this agent's performance and provide:
+
+1. **Performance Assessment**:
+   - Overall effectiveness in hypothesis validation
+   - Success rate patterns and trends
+   - Common failure modes and their causes
+   - Strengths and areas for improvement
+
+2. **Task Analysis**:
+   - Quality of hypothesis validation approaches
+   - Effectiveness of statistical testing methods
+   - Integration with data sources and evidence synthesis
+   - Clinical relevance assessment accuracy
+
+3. **Process Optimization**:
+   - Workflow efficiency and bottlenecks
+   - Resource utilization patterns
+   - Error handling and recovery mechanisms
+   - Collaboration with other agents
+
+4. **Improvement Recommendations**:
+   - Specific adjustments to validation methodology
+   - New statistical approaches or techniques
+   - Enhanced data source integration
+   - Better error detection and correction
+   - Training or calibration needs
+
+5. **Future Strategy**:
+   - Long-term development priorities
+   - Research directions to explore
+   - Collaboration opportunities
+   - Risk mitigation strategies
+
+For Alzheimer's disease research context, consider:
+- Biomarker validation challenges
+- Treatment efficacy assessment complexity
+- Statistical power considerations
+- Clinical trial design implications
+- Regulatory compliance requirements
+
+Format your response as a JSON object with this structure:
+{{
+    "performance_assessment": {{
+        "overall_effectiveness": "High/Medium/Low",
+        "success_rate": 0.85,
+        "key_strengths": ["Strength 1", "Strength 2"],
+        "critical_weaknesses": ["Weakness 1", "Weakness 2"],
+        "performance_trends": "Description of trends"
+    }},
+    "task_analysis": {{
+        "validation_quality": "Assessment of validation approaches",
+        "statistical_methods": "Effectiveness of statistical testing",
+        "data_integration": "Quality of data source usage",
+        "clinical_relevance": "Accuracy of clinical assessments"
+    }},
+    "process_optimization": {{
+        "efficiency_score": 0.75,
+        "bottlenecks_identified": ["Bottleneck 1", "Bottleneck 2"],
+        "resource_utilization": "Assessment of resource usage",
+        "error_handling": "Quality of error management"
+    }},
+    "improvement_recommendations": {{
+        "methodology_adjustments": ["Adjustment 1", "Adjustment 2"],
+        "statistical_enhancements": ["Enhancement 1", "Enhancement 2"],
+        "data_source_improvements": ["Improvement 1", "Improvement 2"],
+        "error_prevention": ["Prevention measure 1", "Prevention measure 2"]
+    }},
+    "future_strategy": {{
+        "development_priorities": ["Priority 1", "Priority 2"],
+        "research_directions": ["Direction 1", "Direction 2"],
+        "collaboration_opportunities": ["Opportunity 1", "Opportunity 2"],
+        "risk_mitigation": ["Mitigation strategy 1", "Mitigation strategy 2"]
+    }},
+    "reflection_summary": {{
+        "key_insights": ["Insight 1", "Insight 2"],
+        "action_items": ["Action 1", "Action 2"],
+        "expected_impact": "Description of expected improvements"
+    }}
+}}"""
+
+        llm_reflection_response = requests.post(
+            f"{LLM_SERVICE_URL}/llm/structured-output",
+            headers={"X-API-Key": LLM_API_KEY, "Content-Type": "application/json"},
+            json={
+                "model_name": "gemini-1.5-flash",
+                "prompt": reflection_prompt,
+                "response_format": {
+                    "type": "json_object",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "performance_assessment": {
+                                "type": "object",
+                                "properties": {
+                                    "overall_effectiveness": {"type": "string"},
+                                    "success_rate": {"type": "number"},
+                                    "key_strengths": {"type": "array", "items": {"type": "string"}},
+                                    "critical_weaknesses": {"type": "array", "items": {"type": "string"}},
+                                    "performance_trends": {"type": "string"}
+                                }
+                            },
+                            "task_analysis": {
+                                "type": "object",
+                                "properties": {
+                                    "validation_quality": {"type": "string"},
+                                    "statistical_methods": {"type": "string"},
+                                    "data_integration": {"type": "string"},
+                                    "clinical_relevance": {"type": "string"}
+                                }
+                            },
+                            "process_optimization": {
+                                "type": "object",
+                                "properties": {
+                                    "efficiency_score": {"type": "number"},
+                                    "bottlenecks_identified": {"type": "array", "items": {"type": "string"}},
+                                    "resource_utilization": {"type": "string"},
+                                    "error_handling": {"type": "string"}
+                                }
+                            },
+                            "improvement_recommendations": {
+                                "type": "object",
+                                "properties": {
+                                    "methodology_adjustments": {"type": "array", "items": {"type": "string"}},
+                                    "statistical_enhancements": {"type": "array", "items": {"type": "string"}},
+                                    "data_source_improvements": {"type": "array", "items": {"type": "string"}},
+                                    "error_prevention": {"type": "array", "items": {"type": "string"}}
+                                }
+                            },
+                            "future_strategy": {
+                                "type": "object",
+                                "properties": {
+                                    "development_priorities": {"type": "array", "items": {"type": "string"}},
+                                    "research_directions": {"type": "array", "items": {"type": "string"}},
+                                    "collaboration_opportunities": {"type": "array", "items": {"type": "string"}},
+                                    "risk_mitigation": {"type": "array", "items": {"type": "string"}}
+                                }
+                            },
+                            "reflection_summary": {
+                                "type": "object",
+                                "properties": {
+                                    "key_insights": {"type": "array", "items": {"type": "string"}},
+                                    "action_items": {"type": "array", "items": {"type": "string"}},
+                                    "expected_impact": {"type": "string"}
+                                }
+                            }
+                        },
+                        "required": ["performance_assessment", "task_analysis", "process_optimization", "improvement_recommendations", "future_strategy", "reflection_summary"]
+                    }
+                },
+                "metadata": {"agent_id": agent_id, "reflection_type": "performance_analysis"}
+            }
+        )
+        llm_reflection_response.raise_for_status()
+        reflection_analysis = llm_reflection_response.json()["structured_output"]
+
+        # Generate analysis outcome and proposed adjustments from LLM insights
+        analysis_outcome = f"Agent {agent_id} completed comprehensive LLM-powered performance analysis. " \
+                          f"Overall effectiveness: {reflection_analysis['performance_assessment']['overall_effectiveness']}. " \
+                          f"Success rate: {reflection_analysis['performance_assessment']['success_rate']:.1%}. " \
+                          f"Key insights: {', '.join(reflection_analysis['reflection_summary']['key_insights'][:2])}."
+
+        proposed_adjustments = reflection_analysis['improvement_recommendations']['methodology_adjustments'] + \
+                              reflection_analysis['improvement_recommendations']['statistical_enhancements'] + \
+                              reflection_analysis['improvement_recommendations']['data_source_improvements']
 
         reflection_result = {
             "analysis_summary": analysis_outcome,
             "proposed_adjustments": proposed_adjustments,
             "task_performance_summary": task_summary,
             "recent_audit_event_count": len(recent_audit_events),
+            "llm_powered_analysis": reflection_analysis,
             "original_reflection_metadata": reflection_metadata
         }
 

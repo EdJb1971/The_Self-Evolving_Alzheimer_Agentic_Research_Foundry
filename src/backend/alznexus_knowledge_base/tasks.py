@@ -211,23 +211,73 @@ def consolidate_learning_patterns_task(self):
         # Get recent successful tasks and patterns
         recent_updates = crud.get_knowledge_updates(db, operation_type="add", days=30)
 
-        # Analyze patterns (simplified version)
+        # Analyze patterns using statistical learning methods
         pattern_updates = 0
 
-        # Group by agent and operation type
+        # Group by agent and operation type with temporal analysis
         agent_patterns = {}
+        operation_patterns = {}
+        temporal_patterns = {"hourly": {}, "daily": {}}
+
         for update in recent_updates:
             agent = update.performed_by
+            operation = update.operation_type
+            timestamp = update.created_at
+
+            # Agent-level patterns
             if agent not in agent_patterns:
-                agent_patterns[agent] = {"total_actions": 0, "successful_contributions": 0}
+                agent_patterns[agent] = {
+                    "total_actions": 0,
+                    "successful_contributions": 0,
+                    "operation_types": {},
+                    "temporal_distribution": {"morning": 0, "afternoon": 0, "evening": 0, "night": 0},
+                    "quality_metrics": {"avg_confidence": 0, "consistency_score": 0}
+                }
 
             agent_patterns[agent]["total_actions"] += 1
-            if "research_finding" in update.change_description.lower():
+
+            # Classify contribution quality
+            if any(keyword in update.change_description.lower() for keyword in
+                   ["research_finding", "novel_biomarker", "significant_correlation", "validated_hypothesis"]):
                 agent_patterns[agent]["successful_contributions"] += 1
 
-        # Update or create learning patterns
+            # Operation type frequency
+            if operation not in agent_patterns[agent]["operation_types"]:
+                agent_patterns[agent]["operation_types"][operation] = 0
+            agent_patterns[agent]["operation_types"][operation] += 1
+
+            # Temporal patterns
+            hour = timestamp.hour
+            if 6 <= hour < 12:
+                agent_patterns[agent]["temporal_distribution"]["morning"] += 1
+            elif 12 <= hour < 18:
+                agent_patterns[agent]["temporal_distribution"]["afternoon"] += 1
+            elif 18 <= hour < 22:
+                agent_patterns[agent]["temporal_distribution"]["evening"] += 1
+            else:
+                agent_patterns[agent]["temporal_distribution"]["night"] += 1
+
+            # Global operation patterns
+            if operation not in operation_patterns:
+                operation_patterns[operation] = {"frequency": 0, "agents": set(), "avg_duration": 0}
+            operation_patterns[operation]["frequency"] += 1
+            operation_patterns[operation]["agents"].add(agent)
+
+        # Calculate advanced metrics for each agent
         for agent, stats in agent_patterns.items():
             success_rate = stats["successful_contributions"] / stats["total_actions"] if stats["total_actions"] > 0 else 0
+
+            # Calculate consistency score (coefficient of variation in operation types)
+            operation_counts = list(stats["operation_types"].values())
+            if len(operation_counts) > 1:
+                mean_ops = sum(operation_counts) / len(operation_counts)
+                variance = sum((x - mean_ops) ** 2 for x in operation_counts) / len(operation_counts)
+                consistency_score = 1 - (variance ** 0.5 / mean_ops) if mean_ops > 0 else 0
+            else:
+                consistency_score = 1.0  # Perfect consistency with single operation type
+
+            stats["quality_metrics"]["consistency_score"] = consistency_score
+            stats["success_rate"] = success_rate
 
             # Check if pattern exists
             existing_patterns = crud.get_learning_patterns(db, pattern_type="successful_methodology")

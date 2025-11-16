@@ -82,7 +82,7 @@ def execute_agent_task(self, agent_task_id: int):
                     metadata=db_agent_task.model_dump()
                 )
 
-                # STORY-301: Simulate biomarker identification by querying AD Workbench Proxy
+                # STORY-301: Execute biomarker identification by querying AD Workbench Proxy for relevant data
                 query_text = f"Retrieve data for biomarker analysis related to: {db_agent_task.task_description}"
                 adworkbench_query_payload = {"query_text": query_text}
                 adworkbench_headers = {"X-API-Key": ADWORKBENCH_API_KEY, "Content-Type": "application/json"}
@@ -150,7 +150,7 @@ def execute_agent_task(self, agent_task_id: int):
                 adworkbench_message = raw_data.get("message", "")
                 # Estimate available space for the message, allowing for other metadata fields
                 # A simple heuristic: reserve half the MAX_METADATA_SIZE_BYTES for the message
-                # The actual size will depend on other fields in mock_result, but this provides a safe upper bound.
+                # The actual size will depend on other fields in the audit metadata, but this provides a safe upper bound.
                 max_message_len_bytes = MAX_METADATA_SIZE_BYTES // 2 
                 truncated_message = adworkbench_message
                 if len(adworkbench_message.encode('utf-8')) > max_message_len_bytes:
@@ -298,24 +298,108 @@ def perform_reflection_task(self, agent_id: str, reflection_metadata: dict):
         audit_history = audit_history_response.json().get("history", [])
         recent_audit_events = [e for e in audit_history if datetime.fromisoformat(e['timestamp'].replace('Z', '+00:00')) > (datetime.utcnow() - timedelta(days=7))]
 
-        # 3. Simulate analysis of past performance and outcomes against ethical guidelines/research goals
-        # Perform data analysis using LLM (no sleep needed)
-        analysis_outcome = f"Agent {agent_id} reviewed {task_summary['total_tasks']} tasks in the last 7 days. " \
-                           f"Completed: {task_summary['completed']}, Failed: {task_summary['failed']}. " \
-                           "Identified potential for improved data source selection and more robust error handling."
-        
-        # 4. Simulate proposing adjustments
-        proposed_adjustments = [
+        # 3. Perform comprehensive analysis of past performance and outcomes against ethical guidelines/research goals
+        # Use LLM for intelligent performance analysis and improvement recommendations
+        performance_data = {
+            "task_summary": task_summary,
+            "recent_audit_events": recent_audit_events[:10],  # Limit to prevent token overflow
+            "agent_id": agent_id,
+            "reflection_metadata": reflection_metadata
+        }
+
+        reflection_prompt = f"""As a biomarker hunter agent, analyze your recent performance and provide insights for improvement.
+
+Performance Data:
+- Total tasks in last 7 days: {task_summary['total_tasks']}
+- Completed: {task_summary['completed']}
+- Failed: {task_summary['failed']}
+- Pending: {task_summary['pending']}
+- Recent audit events: {len(recent_audit_events)}
+
+Recent Audit Events Summary:
+{json.dumps([{"event_type": e.get("event_type", ""), "description": e.get("description", "")[:100]} for e in recent_audit_events[:5]], indent=2)}
+
+Agent Reflection Metadata:
+{json.dumps(reflection_metadata, indent=2)}
+
+Please provide:
+1. A detailed analysis of your performance patterns and effectiveness in biomarker identification
+2. Identification of any systematic issues or improvement opportunities
+3. Specific, actionable recommendations for enhancing biomarker discovery capabilities
+4. Assessment of alignment with Alzheimer's research ethical guidelines and scientific rigor
+
+Structure your response as a JSON object with keys: 'performance_analysis', 'identified_issues', 'recommendations', 'ethical_assessment'."""
+
+        llm_payload = {
+            "model_name": "gemini-1.5-flash",
+            "prompt": reflection_prompt,
+            "metadata": {"agent_id": agent_id, "reflection_type": "biomarker_hunter_performance"}
+        }
+        llm_headers = {"X-API-Key": LLM_API_KEY, "Content-Type": "application/json"}
+
+        llm_response = requests.post(
+            f"{LLM_SERVICE_URL}/llm/chat",
+            headers=llm_headers,
+            json=llm_payload
+        )
+        llm_response.raise_for_status()
+
+        # Safe JSON parsing of LLM response
+        try:
+            llm_result = llm_response.json()
+        except json.JSONDecodeError as e:
+            print(f"LLM response JSON parsing failed: {e}")
+            print(f"LLM response text: {llm_response.text[:500]}...")
+            raise Exception(f"Invalid JSON response from LLM service: {e}")
+
+        # Validate LLM response structure
+        if "response_text" not in llm_result:
+            raise Exception(f"LLM response missing 'response_text' field: {llm_result.keys()}")
+
+        reflection_text = llm_result["response_text"]
+        if not reflection_text or not reflection_text.strip():
+            raise Exception("LLM returned empty reflection analysis")
+
+        # Parse structured reflection from LLM response
+        try:
+            reflection_analysis = json.loads(reflection_text)
+        except json.JSONDecodeError:
+            # Fallback: extract key sections from text response
+            reflection_analysis = {
+                "performance_analysis": reflection_text,
+                "identified_issues": ["Unable to parse structured analysis"],
+                "recommendations": ["Improve LLM response parsing"],
+                "ethical_assessment": "Analysis provided but structure unclear"
+            }
+
+        # 4. Generate specific, actionable adjustments based on LLM analysis
+        proposed_adjustments = reflection_analysis.get("recommendations", [
             "Prioritize data sources with higher data quality scores.",
             "Implement retry mechanisms for AD Workbench API calls.",
             "Refine task descriptions for clarity and specificity."
-        ]
+        ])
+
+        # Ensure recommendations are specific to biomarker hunting
+        biomarker_specific_recommendations = []
+        for rec in proposed_adjustments:
+            if "biomarker" not in rec.lower():
+                rec = f"For biomarker identification: {rec}"
+            biomarker_specific_recommendations.append(rec)
+
+        analysis_outcome = reflection_analysis.get("performance_analysis",
+            f"Agent {agent_id} reviewed {task_summary['total_tasks']} tasks in the last 7 days. " \
+            f"Completed: {task_summary['completed']}, Failed: {task_summary['failed']}. " \
+            "LLM-powered analysis identified opportunities for improved biomarker discovery processes.")
 
         reflection_result = {
             "analysis_summary": analysis_outcome,
-            "proposed_adjustments": proposed_adjustments,
+            "performance_analysis": reflection_analysis.get("performance_analysis", ""),
+            "identified_issues": reflection_analysis.get("identified_issues", []),
+            "proposed_adjustments": biomarker_specific_recommendations,
+            "ethical_assessment": reflection_analysis.get("ethical_assessment", ""),
             "task_performance_summary": task_summary,
             "recent_audit_event_count": len(recent_audit_events),
+            "llm_reflection_used": True,
             "original_reflection_metadata": reflection_metadata
         }
 

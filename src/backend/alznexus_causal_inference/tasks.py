@@ -188,19 +188,58 @@ def build_mechanistic_model_task(self, causal_graph_dict: Dict[str, Any],
     try:
         self.update_state(state='PROGRESS', meta={'progress': 0.1, 'message': 'Initializing mechanistic modeling'})
 
-        # Deserialize causal graph
-        # This is a simplified deserialization - in practice would be more robust
-        graph = nx.DiGraph()
-        for edge in causal_graph_dict.get('edges', []):
-            graph.add_edge(edge[0], edge[1])
+        # Deserialize causal graph with robust validation
+        try:
+            graph = nx.DiGraph()
 
-        # Create a minimal CausalGraph object
+            # Validate graph structure
+            if not isinstance(causal_graph_dict, dict):
+                raise ValueError("Causal graph dict must be a dictionary")
+
+            edges = causal_graph_dict.get('edges', [])
+            if not isinstance(edges, list):
+                raise ValueError("Edges must be a list")
+
+            variables = causal_graph_dict.get('variables', [])
+            if not isinstance(variables, list):
+                raise ValueError("Variables must be a list")
+
+            # Build graph with validation
+            for i, edge in enumerate(edges):
+                if not isinstance(edge, (list, tuple)) or len(edge) != 2:
+                    raise ValueError(f"Edge {i} must be a 2-element list/tuple")
+                source, target = edge
+                if source not in variables or target not in variables:
+                    raise ValueError(f"Edge {edge} references undefined variables")
+                graph.add_edge(source, target)
+
+            # Validate graph properties
+            if not nx.is_directed_acyclic_graph(graph):
+                raise ValueError("Causal graph must be a DAG (no cycles)")
+
+            # Check for isolated nodes (might indicate data issues)
+            isolated_nodes = list(nx.isolates(graph))
+            if isolated_nodes:
+                logger.warning(f"Graph contains isolated nodes: {isolated_nodes}")
+
+        except Exception as e:
+            logger.error(f"Failed to deserialize causal graph: {str(e)}")
+            self.update_state(state='FAILURE', meta={'exc_type': type(e).__name__, 'exc_message': str(e)})
+            raise
+
+        # Create validated CausalGraph object
         from causal_discovery import CausalGraph
-        causal_graph = CausalGraph(
-            graph=graph,
-            adjacency_matrix=nx.to_numpy_array(graph),
-            variables=causal_graph_dict.get('variables', [])
-        )
+        try:
+            adjacency_matrix = nx.to_numpy_array(graph, dtype=int)
+            causal_graph = CausalGraph(
+                graph=graph,
+                adjacency_matrix=adjacency_matrix,
+                variables=variables
+            )
+        except Exception as e:
+            logger.error(f"Failed to create CausalGraph object: {str(e)}")
+            self.update_state(state='FAILURE', meta={'exc_type': type(e).__name__, 'exc_message': str(e)})
+            raise
 
         self.update_state(state='PROGRESS', meta={'progress': 0.3, 'message': f'Integrating pathways for {disease_context}'})
 
@@ -251,12 +290,32 @@ def simulate_intervention_task(self, mechanistic_model_dict: Dict[str, Any],
     try:
         self.update_state(state='PROGRESS', meta={'progress': 0.1, 'message': 'Initializing simulation'})
 
-        # Deserialize mechanistic model (simplified)
-        # In practice, this would be more robust
-        mechanistic_model = get_result(mechanistic_model_dict.get('id'))
+        # Deserialize mechanistic model with validation
+        try:
+            model_id = mechanistic_model_dict.get('id')
+            if not model_id:
+                raise ValueError("Mechanistic model ID is required")
 
-        if mechanistic_model is None:
-            raise ValueError("Mechanistic model not found")
+            mechanistic_model = get_result(model_id)
+            if mechanistic_model is None:
+                raise ValueError(f"Mechanistic model {model_id} not found in cache")
+
+            # Validate model structure
+            required_attrs = ['biological_pathways', 'mechanistic_scores', 'causal_graph']
+            for attr in required_attrs:
+                if not hasattr(mechanistic_model, attr):
+                    raise ValueError(f"Mechanistic model missing required attribute: {attr}")
+
+            # Validate model integrity
+            if not mechanistic_model.biological_pathways:
+                logger.warning("Mechanistic model has no biological pathways")
+            if not mechanistic_model.mechanistic_scores:
+                logger.warning("Mechanistic model has no mechanistic scores")
+
+        except Exception as e:
+            logger.error(f"Failed to deserialize mechanistic model: {str(e)}")
+            self.update_state(state='FAILURE', meta={'exc_type': type(e).__name__, 'exc_message': str(e)})
+            raise
 
         self.update_state(state='PROGRESS', meta={'progress': 0.3, 'message': 'Running mechanistic simulation'})
 
@@ -371,8 +430,60 @@ def validate_causal_graph_task(self, graph_dict: Dict[str, Any]) -> Dict[str, An
 
         self.update_state(state='PROGRESS', meta={'progress': 0.5, 'message': 'Validating biological plausibility'})
 
-        # Biological validation (simplified)
-        biological_score = 0.8  # Placeholder
+        # Comprehensive biological validation
+        biological_score = validate_biological_plausibility(graph, variables)
+
+        def validate_biological_plausibility(graph, variables):
+            """
+            Validate biological plausibility of causal relationships
+            """
+            score = 0.0
+            total_checks = 0
+
+            # Known Alzheimer's biomarkers and their relationships
+            alzheimer_biomarkers = {
+                'amyloid_beta': ['tau_protein', 'cognitive_decline', 'inflammation'],
+                'tau_protein': ['cognitive_decline', 'synaptic_loss', 'neuronal_death'],
+                'cognitive_decline': ['functional_impairment'],
+                'inflammation': ['amyloid_beta', 'tau_protein', 'neuronal_death'],
+                'synaptic_loss': ['cognitive_decline', 'neuronal_death'],
+                'neuronal_death': ['cognitive_decline', 'functional_impairment']
+            }
+
+            # Check for known causal relationships
+            for source, targets in alzheimer_biomarkers.items():
+                if source in variables:
+                    total_checks += 1
+                    source_neighbors = set(graph.successors(source))
+                    known_targets = set(targets)
+                    overlap = len(source_neighbors & known_targets)
+                    if overlap > 0:
+                        score += overlap / len(known_targets)  # Partial credit for known relationships
+
+            # Check for biologically implausible relationships
+            implausible_pairs = [
+                ('cognitive_decline', 'amyloid_beta'),  # Reverse causation
+                ('neuronal_death', 'amyloid_beta'),     # Reverse causation
+                ('functional_impairment', 'amyloid_beta')  # Reverse causation
+            ]
+
+            penalty = 0
+            for source, target in implausible_pairs:
+                if graph.has_edge(source, target):
+                    penalty += 0.2  # Penalty for implausible edges
+
+            # Check for minimum connectivity (isolated nodes are suspicious)
+            isolated_nodes = list(nx.isolates(graph))
+            if isolated_nodes:
+                penalty += 0.1 * len(isolated_nodes)
+
+            # Normalize score
+            if total_checks > 0:
+                final_score = max(0, min(1, (score / total_checks) - penalty))
+            else:
+                final_score = 0.5  # Neutral score if no known biomarkers
+
+            return final_score
 
         self.update_state(state='PROGRESS', meta={'progress': 0.8, 'message': 'Computing graph metrics'})
 

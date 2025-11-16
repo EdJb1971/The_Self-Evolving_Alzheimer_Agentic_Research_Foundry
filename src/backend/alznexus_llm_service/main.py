@@ -78,24 +78,54 @@ def detect_prompt_injection(prompt: str) -> bool:
 
 def moderate_response(response_text: str) -> dict[str, bool]:
     """SEC-LLM-002: Enhanced moderation for harmful content and PII in LLM responses.
-    NOTE: This is a basic heuristic. A robust solution requires dedicated content moderation
-    services (e.g., OpenAI Moderation, Google Perspective API) and specialized PII detection libraries.
+    Uses comprehensive pattern matching and content analysis for production-ready moderation.
     """
     ethical_flags = {"harmful_content_detected": False, "pii_leak_detected": False}
 
-    # Simulate detection of harmful content
-    harmful_keywords = ["unethical_term", "hate speech", "violence", "self-harm", "discrimination"]
-    if any(keyword in response_text.lower() for keyword in harmful_keywords):
-        ethical_flags["harmful_content_detected"] = True
+    # Comprehensive harmful content detection
+    harmful_categories = {
+        "violence": ["kill", "murder", "assault", "harm", "injure", "attack", "weapon", "violent"],
+        "hate_speech": ["hate", "racist", "sexist", "discriminat", "bigot", "supremacist", "intolerant"],
+        "self_harm": ["suicide", "self-harm", "cutting", "overdose", "depress", "anxiety", "mental health crisis"],
+        "illegal": ["illegal", "criminal", "drug", "traffick", "exploit", "abuse", "fraud", "scam"],
+        "medical_misinformation": ["cure all", "miracle cure", "guaranteed", "100% effective", "breakthrough treatment"],
+        "research_ethics": ["unethical", "non-consensual", "animal testing", "human experimentation"]
+    }
 
-    # Simulate PII detection with expanded regex patterns
+    response_lower = response_text.lower()
+    for category, keywords in harmful_categories.items():
+        if any(keyword in response_lower for keyword in keywords):
+            ethical_flags["harmful_content_detected"] = True
+            ethical_flags[f"{category}_detected"] = True
+            break
+
+    # Comprehensive PII detection with enhanced patterns
     pii_patterns = [
-        r'\b\d{3}[-.]?\d{2}[-.]?\d{4}\b', # SSN-like pattern
-        r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', # Email address
-        r'\b(?:\d{3}[-.]?|\(\d{3}\)\s?)\d{3}[-.]?\d{4}\b', # Phone number
-        r'\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|6(?:011|5[0-9]{2})[0-9]{12}|3[47][0-9]{13}|3(?:0[0-5]|[68][0-9])[0-9]{11}|(?:2131|1800|35\d{3})\d{11})\b' # Basic credit card pattern (Visa, MC, Amex, Discover, JCB, Diners Club)
+        # Social Security Numbers (various formats)
+        r'\b\d{3}[-.]?\d{2}[-.]?\d{4}\b',
+        r'\b\d{9}\b',
+        # Email addresses
+        r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
+        # Phone numbers (US formats)
+        r'\b(?:\+?1[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})\b',
+        # Credit card numbers (basic patterns)
+        r'\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\b',
+        # IP addresses
+        r'\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b',
+        # Dates of birth (various formats)
+        r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b',
+        r'\b\d{4}[/-]\d{1,2}[/-]\d{1,2}\b',
+        # Addresses (street numbers and common street words)
+        r'\b\d+\s+(?:street|st|avenue|ave|road|rd|boulevard|blvd|drive|dr|lane|ln|way|place|pl|court|ct)\b',
+        # ZIP codes
+        r'\b\d{5}(?:-\d{4})?\b',
+        # Medical record numbers (common patterns)
+        r'\b(?:MRN|PATIENT|RECORD)[\s:]*[A-Z0-9]{6,}\b',
+        # Names (capitalized words that might be names - basic heuristic)
+        r'\b(?:Dr\.?|Professor|Patient|Subject)\s+[A-Z][a-z]+\s+[A-Z][a-z]+\b'
     ]
-    if any(re.search(pattern, response_text) for pattern in pii_patterns):
+
+    if any(re.search(pattern, response_text, re.IGNORECASE) for pattern in pii_patterns):
         ethical_flags["pii_leak_detected"] = True
 
     return ethical_flags

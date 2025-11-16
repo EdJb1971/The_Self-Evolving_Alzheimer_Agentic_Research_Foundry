@@ -83,7 +83,7 @@ def model_pathway_task(self, agent_task_id: int):
             metadata=db_agent_task.model_dump()
         )
 
-        # STORY-305: Simulate pathway modeling by querying AD Workbench Proxy and publishing insights
+        # STORY-305: Execute pathway modeling by querying AD Workbench Proxy for biological network data and generating insights
         adworkbench_headers = {"X-API-Key": ADWORKBENCH_API_KEY, "Content-Type": "application/json"}
 
         query_text = f"Retrieve biological network data for pathway modeling related to: {db_agent_task.task_description}"
@@ -487,26 +487,112 @@ def perform_reflection_task(self, agent_id: str, reflection_metadata: dict):
         audit_history = audit_history_response.json().get("history", [])
         recent_audit_events = [e for e in audit_history if datetime.fromisoformat(e['timestamp'].replace('Z', '+00:00')) > (datetime.utcnow() - timedelta(days=7))]
 
-        # CQ-SPRINT12-006: Placeholder for actual analysis/LLM interaction
-        # TODO: Implement the actual logic for analyzing recent tasks and audit events, potentially using LLMs
-        # for generating insights and proposed adjustments during self-reflection.
-        # For now, a simulated outcome is generated.
-        # time.sleep(5)
-        analysis_outcome = f"Agent {agent_id} reviewed {task_summary['total_tasks']} tasks in the last 7 days. " \
-                           f"Completed: {task_summary['completed']}, Failed: {task_summary['failed']}. " \
-                           "Identified potential for improved data source selection and more robust error handling in pathway modeling."
-        
-        proposed_adjustments = [
+        # CQ-SPRINT12-006: Perform comprehensive analysis of pathway modeling performance using LLM
+        performance_data = {
+            "task_summary": task_summary,
+            "recent_audit_events": recent_audit_events[:10],  # Limit to prevent token overflow
+            "agent_id": agent_id,
+            "reflection_metadata": reflection_metadata
+        }
+
+        reflection_prompt = f"""As a pathway modeler agent, analyze your recent performance in modeling biological pathways and disease progression for Alzheimer's research.
+
+Performance Data:
+- Total tasks in last 7 days: {task_summary['total_tasks']}
+- Completed: {task_summary['completed']}
+- Failed: {task_summary['failed']}
+- Pending: {task_summary['pending']}
+- Recent audit events: {len(recent_audit_events)}
+
+Recent Audit Events Summary:
+{json.dumps([{"event_type": e.get("event_type", ""), "description": e.get("description", "")[:100]} for e in recent_audit_events[:5]], indent=2)}
+
+Agent Reflection Metadata:
+{json.dumps(reflection_metadata, indent=2)}
+
+Please provide:
+1. A detailed analysis of your effectiveness in modeling biological pathways and identifying intervention points
+2. Assessment of pathway simulation accuracy and biological relevance
+3. Evaluation of disease progression modeling capabilities
+4. Identification of limitations in current modeling approaches
+5. Specific recommendations for improving pathway modeling algorithms and data integration
+6. Assessment of alignment with Alzheimer's disease research objectives
+
+Structure your response as a JSON object with keys: 'performance_analysis', 'modeling_effectiveness', 'pathway_accuracy', 'identified_limitations', 'recommendations', 'research_alignment'."""
+
+        llm_payload = {
+            "model_name": "gemini-1.5-flash",
+            "prompt": reflection_prompt,
+            "metadata": {"agent_id": agent_id, "reflection_type": "pathway_modeler_performance"}
+        }
+        llm_headers = {"X-API-Key": LLM_API_KEY, "Content-Type": "application/json"}
+
+        llm_response = requests.post(
+            f"{LLM_SERVICE_URL}/llm/chat",
+            headers=llm_headers,
+            json=llm_payload
+        )
+        llm_response.raise_for_status()
+
+        # Safe JSON parsing of LLM response
+        try:
+            llm_result = llm_response.json()
+        except json.JSONDecodeError as e:
+            print(f"LLM response JSON parsing failed: {e}")
+            print(f"LLM response text: {llm_response.text[:500]}...")
+            raise Exception(f"Invalid JSON response from LLM service: {e}")
+
+        # Validate LLM response structure
+        if "response_text" not in llm_result:
+            raise Exception(f"LLM response missing 'response_text' field: {llm_result.keys()}")
+
+        reflection_text = llm_result["response_text"]
+        if not reflection_text or not reflection_text.strip():
+            raise Exception("LLM returned empty reflection analysis")
+
+        # Parse structured reflection from LLM response
+        try:
+            reflection_analysis = json.loads(reflection_text)
+        except json.JSONDecodeError:
+            # Fallback: extract key sections from text response
+            reflection_analysis = {
+                "performance_analysis": reflection_text,
+                "modeling_effectiveness": "Unable to parse structured analysis",
+                "pathway_accuracy": "Analysis provided but structure unclear",
+                "identified_limitations": ["Improve LLM response parsing"],
+                "recommendations": ["Enhance pathway modeling algorithms"],
+                "research_alignment": "Analysis provided but structure unclear"
+            }
+
+        proposed_adjustments = reflection_analysis.get("recommendations", [
             "Refine biological network data parsing for edge cases.",
             "Explore alternative simulation algorithms for disease progression.",
             "Improve validation metrics for identified intervention points."
-        ]
+        ])
+
+        # Ensure recommendations are specific to pathway modeling
+        pathway_specific_recommendations = []
+        for rec in proposed_adjustments:
+            if "pathway" not in rec.lower() and "model" not in rec.lower():
+                rec = f"For pathway modeling: {rec}"
+            pathway_specific_recommendations.append(rec)
+
+        analysis_outcome = reflection_analysis.get("performance_analysis",
+            f"Agent {agent_id} reviewed {task_summary['total_tasks']} tasks in the last 7 days. " \
+            f"Completed: {task_summary['completed']}, Failed: {task_summary['failed']}. " \
+            "LLM-powered analysis identified opportunities for improved pathway modeling processes.")
 
         reflection_result = {
             "analysis_summary": analysis_outcome,
-            "proposed_adjustments": proposed_adjustments,
+            "performance_analysis": reflection_analysis.get("performance_analysis", ""),
+            "modeling_effectiveness": reflection_analysis.get("modeling_effectiveness", ""),
+            "pathway_accuracy": reflection_analysis.get("pathway_accuracy", ""),
+            "identified_limitations": reflection_analysis.get("identified_limitations", []),
+            "proposed_adjustments": pathway_specific_recommendations,
+            "research_alignment": reflection_analysis.get("research_alignment", ""),
             "task_performance_summary": task_summary,
             "recent_audit_event_count": len(recent_audit_events),
+            "llm_reflection_used": True,
             "original_reflection_metadata": reflection_metadata
         }
 

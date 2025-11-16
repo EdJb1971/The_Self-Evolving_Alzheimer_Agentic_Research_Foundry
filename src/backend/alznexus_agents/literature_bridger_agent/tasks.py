@@ -15,6 +15,8 @@ AUDIT_TRAIL_URL = os.getenv("AUDIT_TRAIL_URL")
 AUDIT_API_KEY = os.getenv("AUDIT_API_KEY")
 ADWORKBENCH_PROXY_URL = os.getenv("ADWORKBENCH_PROXY_URL")
 ADWORKBENCH_API_KEY = os.getenv("ADWORKBENCH_API_KEY")
+LLM_SERVICE_URL = os.getenv("LLM_SERVICE_URL")
+LLM_API_KEY = os.getenv("LLM_API_KEY")
 
 MAX_RESULT_DATA_SIZE_BYTES = 1 * 1024 * 1024
 
@@ -330,22 +332,192 @@ def perform_reflection_task(self, agent_id: str, reflection_metadata: dict):
         audit_history = audit_history_response.json().get("history", [])
         recent_audit_events = [e for e in audit_history if datetime.fromisoformat(e['timestamp'].replace('Z', '+00:00')) > (datetime.utcnow() - timedelta(days=7))]
 
-        # TODO: CQ-LB-003: Replace with actual analysis/LLM interaction. The blocking time.sleep() has been removed.
-        analysis_outcome = f"Agent {agent_id} reviewed {task_summary['total_tasks']} tasks in the last 7 days. " \
-                           f"Completed: {task_summary['completed']}, Failed: {task_summary['failed']}. " \
-                           "Identified potential for improving literature search strategies and connection synthesis."
-        
-        proposed_adjustments = [
-            "Refine keywords for literature search to improve relevance.",
-            "Explore new NLP models for extracting nuanced connections.",
-            "Increase cross-referencing with external knowledge graphs."
-        ]
+        # CQ-LB-003: Implement LLM-powered literature bridging analysis
+        reflection_prompt = f"""Analyze the recent performance of an Alzheimer's disease literature bridging agent and provide insights for improvement.
+
+Agent Performance Data:
+- Total tasks in last 7 days: {task_summary['total_tasks']}
+- Completed tasks: {task_summary['completed']}
+- Failed tasks: {task_summary['failed']}
+- Pending tasks: {task_summary['pending']}
+- Recent audit events: {len(recent_audit_events)}
+
+Recent Tasks Summary:
+{chr(10).join([f"- {task.task_description[:100]}... (Status: {task.status})" for task in recent_tasks[:5]])}
+
+Recent Audit Events:
+{chr(10).join([f"- {event.event_type}: {event.description[:100]}..." for event in recent_audit_events[:5]])}
+
+Agent specializes in: Literature bridging, connecting disparate research findings, identifying knowledge gaps, and synthesizing connections across Alzheimer's disease research domains.
+
+Please analyze this agent's performance and provide:
+
+1. **Literature Analysis Quality**:
+   - Effectiveness of literature search and retrieval
+   - Quality of connection synthesis between studies
+   - Identification of knowledge gaps and research opportunities
+   - Cross-domain integration capabilities
+
+2. **Bridging Methodology**:
+   - Sophistication of connection algorithms
+   - Handling of conflicting evidence
+   - Temporal trend analysis in literature
+   - Citation network analysis effectiveness
+
+3. **Research Synthesis**:
+   - Quality of evidence integration
+   - Identification of emerging patterns
+   - Predictive power of literature trends
+   - Clinical translation potential assessment
+
+4. **Improvement Recommendations**:
+   - Enhanced literature search strategies
+   - Better connection algorithms
+   - Improved knowledge gap identification
+   - More sophisticated synthesis methods
+
+5. **Future Research Directions**:
+   - Novel literature analysis approaches
+   - Integration with other research modalities
+   - Predictive modeling from literature trends
+   - Clinical impact assessment methods
+
+For Alzheimer's disease literature context, consider:
+- Biomarker research integration challenges
+- Treatment development pipeline analysis
+- Epidemiological study connections
+- Translational research gaps
+- Regulatory and clinical trial literature
+
+Format your response as a JSON object with this structure:
+{{
+    "literature_analysis": {{
+        "search_effectiveness": "High/Medium/Low",
+        "connection_quality": 0.85,
+        "gap_identification": "Assessment of gap finding",
+        "cross_domain_integration": "Quality of interdisciplinary connections"
+    }},
+    "bridging_methodology": {{
+        "algorithm_sophistication": "Assessment of bridging methods",
+        "conflict_resolution": "Handling of contradictory findings",
+        "temporal_analysis": "Trend identification quality",
+        "network_analysis": "Citation network effectiveness"
+    }},
+    "research_synthesis": {{
+        "evidence_integration": "Quality of synthesis",
+        "pattern_recognition": "Emerging pattern identification",
+        "predictive_accuracy": 0.75,
+        "clinical_translation": "Clinical relevance assessment"
+    }},
+    "improvement_recommendations": {{
+        "search_strategies": ["Strategy 1", "Strategy 2"],
+        "connection_algorithms": ["Algorithm 1", "Algorithm 2"],
+        "gap_analysis": ["Method 1", "Method 2"],
+        "synthesis_methods": ["Method 1", "Method 2"]
+    }},
+    "future_directions": {{
+        "novel_approaches": ["Approach 1", "Approach 2"],
+        "integration_opportunities": ["Integration 1", "Integration 2"],
+        "predictive_modeling": ["Model 1", "Model 2"],
+        "clinical_assessment": ["Assessment 1", "Assessment 2"]
+    }},
+    "reflection_summary": {{
+        "key_insights": ["Insight 1", "Insight 2"],
+        "action_items": ["Action 1", "Action 2"],
+        "expected_impact": "Description of expected improvements"
+    }}
+}}"""
+
+        llm_reflection_response = requests.post(
+            f"{LLM_SERVICE_URL}/llm/structured-output",
+            headers={"X-API-Key": LLM_API_KEY, "Content-Type": "application/json"},
+            json={
+                "model_name": "gemini-1.5-flash",
+                "prompt": reflection_prompt,
+                "response_format": {
+                    "type": "json_object",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "literature_analysis": {
+                                "type": "object",
+                                "properties": {
+                                    "search_effectiveness": {"type": "string"},
+                                    "connection_quality": {"type": "number"},
+                                    "gap_identification": {"type": "string"},
+                                    "cross_domain_integration": {"type": "string"}
+                                }
+                            },
+                            "bridging_methodology": {
+                                "type": "object",
+                                "properties": {
+                                    "algorithm_sophistication": {"type": "string"},
+                                    "conflict_resolution": {"type": "string"},
+                                    "temporal_analysis": {"type": "string"},
+                                    "network_analysis": {"type": "string"}
+                                }
+                            },
+                            "research_synthesis": {
+                                "type": "object",
+                                "properties": {
+                                    "evidence_integration": {"type": "string"},
+                                    "pattern_recognition": {"type": "string"},
+                                    "predictive_accuracy": {"type": "number"},
+                                    "clinical_translation": {"type": "string"}
+                                }
+                            },
+                            "improvement_recommendations": {
+                                "type": "object",
+                                "properties": {
+                                    "search_strategies": {"type": "array", "items": {"type": "string"}},
+                                    "connection_algorithms": {"type": "array", "items": {"type": "string"}},
+                                    "gap_analysis": {"type": "array", "items": {"type": "string"}},
+                                    "synthesis_methods": {"type": "array", "items": {"type": "string"}}
+                                }
+                            },
+                            "future_directions": {
+                                "type": "object",
+                                "properties": {
+                                    "novel_approaches": {"type": "array", "items": {"type": "string"}},
+                                    "integration_opportunities": {"type": "array", "items": {"type": "string"}},
+                                    "predictive_modeling": {"type": "array", "items": {"type": "string"}},
+                                    "clinical_assessment": {"type": "array", "items": {"type": "string"}}
+                                }
+                            },
+                            "reflection_summary": {
+                                "type": "object",
+                                "properties": {
+                                    "key_insights": {"type": "array", "items": {"type": "string"}},
+                                    "action_items": {"type": "array", "items": {"type": "string"}},
+                                    "expected_impact": {"type": "string"}
+                                }
+                            }
+                        },
+                        "required": ["literature_analysis", "bridging_methodology", "research_synthesis", "improvement_recommendations", "future_directions", "reflection_summary"]
+                    }
+                },
+                "metadata": {"agent_id": agent_id, "reflection_type": "literature_bridging_analysis"}
+            }
+        )
+        llm_reflection_response.raise_for_status()
+        reflection_analysis = llm_reflection_response.json()["structured_output"]
+
+        # Generate analysis outcome and proposed adjustments from LLM insights
+        analysis_outcome = f"Agent {agent_id} completed comprehensive LLM-powered literature analysis. " \
+                          f"Search effectiveness: {reflection_analysis['literature_analysis']['search_effectiveness']}. " \
+                          f"Connection quality: {reflection_analysis['literature_analysis']['connection_quality']:.1%}. " \
+                          f"Key insights: {', '.join(reflection_analysis['reflection_summary']['key_insights'][:2])}."
+
+        proposed_adjustments = reflection_analysis['improvement_recommendations']['search_strategies'] + \
+                              reflection_analysis['improvement_recommendations']['connection_algorithms'] + \
+                              reflection_analysis['improvement_recommendations']['gap_analysis']
 
         reflection_result = {
             "analysis_summary": analysis_outcome,
             "proposed_adjustments": proposed_adjustments,
             "task_performance_summary": task_summary,
             "recent_audit_event_count": len(recent_audit_events),
+            "llm_powered_analysis": reflection_analysis,
             "original_reflection_metadata": reflection_metadata
         }
 

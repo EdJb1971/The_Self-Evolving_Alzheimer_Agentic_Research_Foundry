@@ -150,13 +150,13 @@ class CausalEffectRequest(BaseModel):
         if self.treatment and self.outcome and self.treatment == self.outcome:
             raise ValueError("Treatment and outcome variables must be different")
 
-        if treatment and treatment in confounders:
+        if self.treatment and self.treatment in self.confounders:
             raise ValueError("Treatment variable cannot be in confounders")
 
-        if outcome and outcome in confounders:
+        if self.outcome and self.outcome in self.confounders:
             raise ValueError("Outcome variable cannot be in confounders")
 
-        return values
+        return self
 
 class CausalEffectResultResponse(BaseModel):
     """Causal effect result response"""

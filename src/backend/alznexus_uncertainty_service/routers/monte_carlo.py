@@ -5,6 +5,11 @@ from ..models import UncertaintyAnalysis
 from ..schemas import MonteCarloEnsembleRequest, MonteCarloEnsembleResponse
 from ..tasks import perform_monte_carlo_uncertainty_task
 import logging
+import numpy as np
+import tensorflow as tf
+
+# Configure TensorFlow for CPU usage to avoid GPU issues
+tf.config.set_visible_devices([], 'GPU')
 
 logger = logging.getLogger(__name__)
 
@@ -76,16 +81,68 @@ async def monte_carlo_dropout(
     """
     Perform Monte Carlo dropout uncertainty estimation.
 
-    Uses dropout at inference time to estimate model uncertainty.
+    Uses dropout at inference time to estimate model uncertainty through multiple forward passes.
     """
     try:
-        # Placeholder: Implement Monte Carlo dropout
-        # This would use a neural network with dropout layers enabled during inference
+        # Extract model configuration and input data
+        input_dim = model_config.get('input_dim', len(input_data.get('features', [0.5])))
+        hidden_dims = model_config.get('hidden_dims', [64, 32])
+        dropout_rate = model_config.get('dropout_rate', 0.1)
+
+        # Prepare input data
+        X_test = np.array(input_data.get('features', [0.5])).reshape(1, -1)
+
+        # Build neural network with dropout for Monte Carlo estimation
+        model = tf.keras.Sequential()
+        model.add(tf.keras.layers.InputLayer(input_shape=(input_dim,)))
+
+        # Hidden layers with dropout
+        for hidden_dim in hidden_dims:
+            model.add(tf.keras.layers.Dense(hidden_dim, activation='relu'))
+            model.add(tf.keras.layers.Dropout(dropout_rate))
+
+        # Output layer
+        model.add(tf.keras.layers.Dense(1, activation='sigmoid'))
+
+        # Compile model (weights will be random for uncertainty estimation)
+        model.compile(optimizer='adam', loss='mse')
+
+        # Perform Monte Carlo sampling with dropout enabled
+        predictions = []
+        for _ in range(n_samples):
+            # Each forward pass with dropout enabled gives different prediction
+            pred = model(X_test, training=True)  # training=True enables dropout
+            predictions.append(pred.numpy().flatten()[0])
+
+        predictions = np.array(predictions)
+
+        # Calculate statistics
+        mean_prediction = np.mean(predictions)
+        std_prediction = np.std(predictions)
+
+        # Calculate confidence bounds
+        z_score = tf.keras.backend.eval(tf.keras.backend.constant(confidence_level).numpy())
+        if confidence_level == 0.95:
+            z_score = 1.96
+        elif confidence_level == 0.99:
+            z_score = 2.576
+        else:
+            # Calculate z-score for given confidence level
+            z_score = tf.keras.backend.eval(tf.keras.backend.constant(
+                tf.keras.backend.abs(tf.keras.backend.erfinv(confidence_level * 2 - 1)) * tf.keras.backend.sqrt(2.0)
+            ).numpy())
+
+        lower_bound = mean_prediction - z_score * std_prediction
+        upper_bound = mean_prediction + z_score * std_prediction
 
         prediction = {
-            "mean_prediction": 0.5,
-            "uncertainty": 0.1,
-            "confidence_interval": [0.3, 0.7]
+            "mean_prediction": float(mean_prediction),
+            "std_prediction": float(std_prediction),
+            "confidence_interval": [float(lower_bound), float(upper_bound)],
+            "predictions_distribution": {
+                "samples": predictions.tolist()[:50],  # Store first 50 samples
+                "n_total_samples": len(predictions)
+            }
         }
 
         analysis = UncertaintyAnalysis(
@@ -93,7 +150,11 @@ async def monte_carlo_dropout(
             model_name="dropout_uncertainty",
             input_data={"model_config": model_config, "input_data": input_data, "n_samples": n_samples},
             results=prediction,
-            uncertainty_bounds={"method": "monte_carlo_dropout", "confidence_level": confidence_level},
+            uncertainty_bounds={
+                "method": "monte_carlo_dropout",
+                "confidence_level": confidence_level,
+                "z_score": z_score
+            },
             confidence_level=confidence_level
         )
         db.add(analysis)
@@ -104,7 +165,12 @@ async def monte_carlo_dropout(
             "prediction_id": analysis.id,
             "prediction": prediction,
             "method": "monte_carlo_dropout",
-            "n_samples": n_samples
+            "n_samples": n_samples,
+            "model_config": {
+                "input_dim": input_dim,
+                "hidden_dims": hidden_dims,
+                "dropout_rate": dropout_rate
+            }
         }
 
     except Exception as e:

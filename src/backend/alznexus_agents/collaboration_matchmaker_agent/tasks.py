@@ -17,6 +17,8 @@ ADWORKBENCH_PROXY_URL = os.getenv("ADWORKBENCH_PROXY_URL")
 ADWORKBENCH_API_KEY = os.getenv("ADWORKBENCH_API_KEY")
 AGENT_REGISTRY_URL = os.getenv("AGENT_REGISTRY_URL")
 AGENT_REGISTRY_API_KEY = os.getenv("AGENT_REGISTRY_API_KEY")
+LLM_SERVICE_URL = os.getenv("LLM_SERVICE_URL")
+LLM_API_KEY = os.getenv("LLM_API_KEY")
 
 MAX_RESULT_DATA_SIZE_BYTES = 1 * 1024 * 1024
 
@@ -80,11 +82,11 @@ def match_collaboration_task(self, agent_task_id: int):
                 metadata=db_agent_task.model_dump()
             )
 
-            # COMP-016: Simulate identifying research problems and suggesting optimal collaborations
+            # COMP-016: Execute collaboration matchmaking by identifying research problems and suggesting optimal agent collaborations
             adworkbench_headers = {"X-API-Key": ADWORKBENCH_API_KEY, "Content-Type": "application/json"}
             registry_headers = {"X-API-Key": AGENT_REGISTRY_API_KEY}
 
-            # 1. Simulate querying AD Workbench for research problems/data
+            # 1. Query AD Workbench for research problems and data gaps
             query_text = f"Retrieve complex research problems or data gaps related to: {db_agent_task.task_description}"
             adworkbench_query_payload = {"query_text": query_text}
 
@@ -392,22 +394,109 @@ def perform_reflection_task(self, agent_id: str, reflection_metadata: dict):
         audit_history = audit_history_response.json().get("history", [])
         recent_audit_events = [e for e in audit_history if datetime.fromisoformat(e['timestamp'].replace('Z', '+00:00')) > (datetime.utcnow() - timedelta(days=7))]
 
-        # TODO: CQ-CM-003: Replace with actual analysis/LLM interaction. The blocking time.sleep() has been removed.
-        analysis_outcome = f"Agent {agent_id} reviewed {task_summary['total_tasks']} tasks in the last 7 days. " \
-                           f"Completed: {task_summary['completed']}, Failed: {task_summary['failed']}. " \
-                           "Identified potential for improving agent discovery and collaboration rationale generation."
-        
-        proposed_adjustments = [
+        # CQ-CM-003: Perform comprehensive analysis of collaboration matchmaking performance using LLM
+        performance_data = {
+            "task_summary": task_summary,
+            "recent_audit_events": recent_audit_events[:10],  # Limit to prevent token overflow
+            "agent_id": agent_id,
+            "reflection_metadata": reflection_metadata
+        }
+
+        reflection_prompt = f"""As a collaboration matchmaker agent, analyze your recent performance in identifying research problems and suggesting optimal collaborations.
+
+Performance Data:
+- Total tasks in last 7 days: {task_summary['total_tasks']}
+- Completed: {task_summary['completed']}
+- Failed: {task_summary['failed']}
+- Pending: {task_summary['pending']}
+- Recent audit events: {len(recent_audit_events)}
+
+Recent Audit Events Summary:
+{json.dumps([{"event_type": e.get("event_type", ""), "description": e.get("description", "")[:100]} for e in recent_audit_events[:5]], indent=2)}
+
+Agent Reflection Metadata:
+{json.dumps(reflection_metadata, indent=2)}
+
+Please provide:
+1. A detailed analysis of your effectiveness in matching agents to research problems and facilitating collaborations
+2. Assessment of collaboration rationale quality and success rates
+3. Identification of gaps in agent discovery or matching algorithms
+4. Specific recommendations for improving collaboration matchmaking capabilities
+5. Evaluation of how well collaborations align with Alzheimer's research goals
+
+Structure your response as a JSON object with keys: 'performance_analysis', 'collaboration_effectiveness', 'identified_gaps', 'recommendations', 'research_alignment'."""
+
+        llm_payload = {
+            "model_name": "gemini-1.5-flash",
+            "prompt": reflection_prompt,
+            "metadata": {"agent_id": agent_id, "reflection_type": "collaboration_matchmaker_performance"}
+        }
+        llm_headers = {"X-API-Key": LLM_API_KEY, "Content-Type": "application/json"}
+
+        llm_response = requests.post(
+            f"{LLM_SERVICE_URL}/llm/chat",
+            headers=llm_headers,
+            json=llm_payload
+        )
+        llm_response.raise_for_status()
+
+        # Safe JSON parsing of LLM response
+        try:
+            llm_result = llm_response.json()
+        except json.JSONDecodeError as e:
+            print(f"LLM response JSON parsing failed: {e}")
+            print(f"LLM response text: {llm_response.text[:500]}...")
+            raise Exception(f"Invalid JSON response from LLM service: {e}")
+
+        # Validate LLM response structure
+        if "response_text" not in llm_result:
+            raise Exception(f"LLM response missing 'response_text' field: {llm_result.keys()}")
+
+        reflection_text = llm_result["response_text"]
+        if not reflection_text or not reflection_text.strip():
+            raise Exception("LLM returned empty reflection analysis")
+
+        # Parse structured reflection from LLM response
+        try:
+            reflection_analysis = json.loads(reflection_text)
+        except json.JSONDecodeError:
+            # Fallback: extract key sections from text response
+            reflection_analysis = {
+                "performance_analysis": reflection_text,
+                "collaboration_effectiveness": "Unable to parse structured analysis",
+                "identified_gaps": ["Improve LLM response parsing"],
+                "recommendations": ["Enhance collaboration algorithms"],
+                "research_alignment": "Analysis provided but structure unclear"
+            }
+
+        proposed_adjustments = reflection_analysis.get("recommendations", [
             "Enhance querying of Agent Registry for more granular capabilities.",
             "Develop more sophisticated algorithms for matching agents to complex problems.",
             "Improve rationale generation for suggested collaborations."
-        ]
+        ])
+
+        # Ensure recommendations are specific to collaboration matchmaking
+        collaboration_specific_recommendations = []
+        for rec in proposed_adjustments:
+            if "collaborat" not in rec.lower():
+                rec = f"For collaboration matchmaking: {rec}"
+            collaboration_specific_recommendations.append(rec)
+
+        analysis_outcome = reflection_analysis.get("performance_analysis",
+            f"Agent {agent_id} reviewed {task_summary['total_tasks']} tasks in the last 7 days. " \
+            f"Completed: {task_summary['completed']}, Failed: {task_summary['failed']}. " \
+            "LLM-powered analysis identified opportunities for improved collaboration matchmaking processes.")
 
         reflection_result = {
             "analysis_summary": analysis_outcome,
-            "proposed_adjustments": proposed_adjustments,
+            "performance_analysis": reflection_analysis.get("performance_analysis", ""),
+            "collaboration_effectiveness": reflection_analysis.get("collaboration_effectiveness", ""),
+            "identified_gaps": reflection_analysis.get("identified_gaps", []),
+            "proposed_adjustments": collaboration_specific_recommendations,
+            "research_alignment": reflection_analysis.get("research_alignment", ""),
             "task_performance_summary": task_summary,
             "recent_audit_event_count": len(recent_audit_events),
+            "llm_reflection_used": True,
             "original_reflection_metadata": reflection_metadata
         }
 

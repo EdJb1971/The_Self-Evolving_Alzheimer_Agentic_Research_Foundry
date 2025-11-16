@@ -31,7 +31,7 @@ AlzNexus is engineered with a comprehensive set of features to enable its autono
 
 ### Core Agentic Autonomy
 *   **Master Orchestrator Agent:** The central intelligence responsible for setting high-level research goals, coordinating specialized sub-agents, managing multi-agent debates, and overseeing continuous, unsupervised research iterations. It initiates daily data scans and adapts strategies over long horizons (weeks/months).
-*   **Specialized Sub-Agents:** A modular swarm of 8-12 domain-expert agents, including:
+*   **Specialized Sub-Agents:** A modular swarm of 8 domain-expert agents, including:
     *   **Biomarker Hunter:** Identifies novel early-stage signatures from imaging, omics, and clinical data.
     *   **Pathway Modeler:** Constructs and simulates novel disease progression models, identifying key intervention points.
     *   **Trial Optimizer:** Redesigns clinical trial parameters (e.g., inclusion criteria, endpoints) to simulate improved success probabilities.

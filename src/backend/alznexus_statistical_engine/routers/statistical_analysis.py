@@ -321,22 +321,35 @@ async def generate_data_quality_report(
                 "is_normal": p_value > 0.05
             }
 
-        # Distribution statistics
-        report["distribution_stats"] = {
-            "mean": float(np.mean(data)),
-            "median": float(np.median(data)),
-            "std": float(np.std(data, ddof=1)),
-            "min": float(np.min(data)),
-            "max": float(np.max(data)),
-            "skewness": float(stats.skew(data.flatten())),
-            "kurtosis": float(stats.kurtosis(data.flatten()))
-        }
+        # Calculate comprehensive quality score based on multiple factors
+        quality_score = 1.0  # Start with perfect score
+
+        # Penalize for missing values (max 20% penalty)
+        missing_rate = report["missing_values"] / report["sample_size"]
+        quality_score -= min(0.2, missing_rate * 0.5)
+
+        # Penalize for non-normality (max 15% penalty)
+        if report["normality_test"].get("p_value", 1.0) < 0.05:
+            quality_score -= 0.15
+
+        # Penalize for outliers (max 10% penalty)
+        outlier_rate = report["outliers"] / report["sample_size"]
+        quality_score -= min(0.1, outlier_rate * 0.2)
+
+        # Penalize for extreme skewness/kurtosis (max 10% penalty)
+        skewness = abs(report["distribution_stats"].get("skewness", 0))
+        kurtosis = abs(report["distribution_stats"].get("kurtosis", 0))
+        distribution_penalty = min(0.1, (skewness / 2.0 + kurtosis / 4.0) * 0.05)
+        quality_score -= distribution_penalty
+
+        # Ensure score stays within reasonable bounds
+        quality_score = max(0.1, min(1.0, quality_score))
 
         # Create report record
         report_data = DataQualityReportCreate(
             dataset_name=request.dataset_name,
             report_data=json.dumps(report),
-            quality_score=request.quality_score or 0.8,  # Placeholder
+            quality_score=quality_score,
             issues_found=request.issues_found or []
         )
 
