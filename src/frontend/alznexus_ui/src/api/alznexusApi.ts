@@ -585,3 +585,263 @@ export interface EvolutionTrajectory {
   estimated_completion: string;
   trajectory_timestamp: string;
 }
+
+// Research-Grade Component APIs
+
+// Evolution Dashboard APIs
+export const getEvolutionMetrics = async () => {
+  try {
+    const response = await autonomousLearningApi.get('/evolution/metrics');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch evolution metrics:', error);
+    throw error;
+  }
+};
+
+// Research Canvas APIs
+export const getAgentOrchestration = async () => {
+  try {
+    const response = await orchestratorApi.get('/orchestration/agents');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch agent orchestration:', error);
+    throw error;
+  }
+};
+
+export const getTaskFlows = async () => {
+  try {
+    const response = await orchestratorApi.get('/orchestration/task-flows');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch task flows:', error);
+    throw error;
+  }
+};
+
+export const getAgentDebates = async () => {
+  try {
+    const response = await orchestratorApi.get('/orchestration/debates');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch agent debates:', error);
+    throw error;
+  }
+};
+
+// Causal Inference Explorer APIs
+export const getCausalGraphs = async () => {
+  try {
+    const response = await orchestratorApi.get('/causal/graphs');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch causal graphs:', error);
+    throw error;
+  }
+};
+
+export const simulateIntervention = async (intervention: any) => {
+  try {
+    const response = await orchestratorApi.post('/causal/intervene', intervention);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to simulate intervention:', error);
+    throw error;
+  }
+};
+
+export const getMechanisticPathways = async () => {
+  try {
+    const response = await orchestratorApi.get('/causal/pathways');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch mechanistic pathways:', error);
+    throw error;
+  }
+};
+
+// Uncertainty Quantification Center APIs
+export const getUncertaintyMetrics = async () => {
+  try {
+    const response = await orchestratorApi.get('/uncertainty/metrics');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch uncertainty metrics:', error);
+    throw error;
+  }
+};
+
+export const getMonteCarloResults = async () => {
+  try {
+    const response = await orchestratorApi.get('/uncertainty/monte-carlo');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch Monte Carlo results:', error);
+    throw error;
+  }
+};
+
+export const getPINNConvergence = async () => {
+  try {
+    const response = await orchestratorApi.get('/uncertainty/pinn-convergence');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch PINN convergence:', error);
+    throw error;
+  }
+};
+
+// Knowledge Base Navigator APIs
+export const semanticSearch = async (query: string) => {
+  try {
+    const response = await orchestratorApi.post('/knowledge/search', { query });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to perform semantic search:', error);
+    throw error;
+  }
+};
+
+export const getKnowledgeEvolution = async () => {
+  try {
+    const response = await orchestratorApi.get('/knowledge/evolution');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch knowledge evolution:', error);
+    throw error;
+  }
+};
+
+export const getPatternRecognition = async () => {
+  try {
+    const response = await orchestratorApi.get('/knowledge/patterns');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch pattern recognition:', error);
+    throw error;
+  }
+};
+
+// Research Output Studio APIs
+export const generateResearchReport = async (findings: any) => {
+  try {
+    const response = await orchestratorApi.post('/reports/generate', findings);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to generate research report:', error);
+    throw error;
+  }
+};
+
+export const validateStatisticalOutputs = async (outputs: any) => {
+  try {
+    const response = await orchestratorApi.post('/reports/validate', outputs);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to validate statistical outputs:', error);
+    throw error;
+  }
+};
+
+export const exportPublication = async (reportId: string, format: string) => {
+  try {
+    const response = await orchestratorApi.post('/reports/export', { reportId, format });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to export publication:', error);
+    throw error;
+  }
+};
+
+// Performance Analytics Suite APIs
+export const getSystemHealthDashboard = async () => {
+  try {
+    const response = await orchestratorApi.get('/health/dashboard');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch system health dashboard:', error);
+    throw error;
+  }
+};
+
+export const getAgentPerformanceMatrix = async () => {
+  try {
+    const response = await orchestratorApi.get('/performance/matrix');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch agent performance matrix:', error);
+    throw error;
+  }
+};
+
+export const getResourceUtilization = async () => {
+  try {
+    const response = await orchestratorApi.get('/performance/resources');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch resource utilization:', error);
+    throw error;
+  }
+};
+
+export const getErrorPatterns = async () => {
+  try {
+    const response = await orchestratorApi.get('/performance/errors');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch error patterns:', error);
+    throw error;
+  }
+};
+
+// Research Ethics & Bias Monitor APIs
+export const getBiasDetectionResults = async () => {
+  try {
+    const response = await orchestratorApi.get('/ethics/bias-detection');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch bias detection results:', error);
+    throw error;
+  }
+};
+
+export const getEthicalCompliance = async () => {
+  try {
+    const response = await orchestratorApi.get('/ethics/compliance');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch ethical compliance:', error);
+    throw error;
+  }
+};
+
+export const getContentModerationLogs = async () => {
+  try {
+    const response = await orchestratorApi.get('/ethics/moderation-logs');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch content moderation logs:', error);
+    throw error;
+  }
+};
+
+export const getDataPrivacyMetrics = async () => {
+  try {
+    const response = await orchestratorApi.get('/ethics/privacy-metrics');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch data privacy metrics:', error);
+    throw error;
+  }
+};
+
+export const getAuditTrailExplorer = async () => {
+  try {
+    const response = await orchestratorApi.get('/ethics/audit-trail');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch audit trail explorer:', error);
+    throw error;
+  }
+};

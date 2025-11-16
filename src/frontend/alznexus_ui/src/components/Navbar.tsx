@@ -96,6 +96,78 @@ function Navbar() {
             </Link>
 
             <Link
+              to="/evolution-dashboard"
+              className={`text-white hover:text-blue-200 transition-colors ${
+                isActive('/evolution-dashboard') ? 'text-blue-200' : ''
+              }`}
+            >
+              Evolution Dashboard
+            </Link>
+
+            <Link
+              to="/research-canvas"
+              className={`text-white hover:text-blue-200 transition-colors ${
+                isActive('/research-canvas') ? 'text-blue-200' : ''
+              }`}
+            >
+              Research Canvas
+            </Link>
+
+            <Link
+              to="/causal-inference"
+              className={`text-white hover:text-blue-200 transition-colors ${
+                isActive('/causal-inference') ? 'text-blue-200' : ''
+              }`}
+            >
+              Causal Inference
+            </Link>
+
+            <Link
+              to="/uncertainty-center"
+              className={`text-white hover:text-blue-200 transition-colors ${
+                isActive('/uncertainty-center') ? 'text-blue-200' : ''
+              }`}
+            >
+              Uncertainty Center
+            </Link>
+
+            <Link
+              to="/knowledge-base"
+              className={`text-white hover:text-blue-200 transition-colors ${
+                isActive('/knowledge-base') ? 'text-blue-200' : ''
+              }`}
+            >
+              Knowledge Base
+            </Link>
+
+            <Link
+              to="/research-output"
+              className={`text-white hover:text-blue-200 transition-colors ${
+                isActive('/research-output') ? 'text-blue-200' : ''
+              }`}
+            >
+              Research Output
+            </Link>
+
+            <Link
+              to="/performance-analytics"
+              className={`text-white hover:text-blue-200 transition-colors ${
+                isActive('/performance-analytics') ? 'text-blue-200' : ''
+              }`}
+            >
+              Performance Analytics
+            </Link>
+
+            <Link
+              to="/ethics-monitor"
+              className={`text-white hover:text-blue-200 transition-colors ${
+                isActive('/ethics-monitor') ? 'text-blue-200' : ''
+              }`}
+            >
+              Ethics Monitor
+            </Link>
+
+            <Link
               to="/audit-trail"
               className={`text-white hover:text-blue-200 transition-colors ${
                 isActive('/audit-trail') ? 'text-blue-200' : ''

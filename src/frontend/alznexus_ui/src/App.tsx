@@ -11,6 +11,14 @@ import AdvancedOrchestratorControls from './components/AdvancedOrchestratorContr
 import LearningDashboard from './components/LearningDashboard';
 import Settings from './components/Settings';
 import Navbar from './components/Navbar';
+import EvolutionDashboard from './components/EvolutionDashboard';
+import ResearchCanvas from './components/ResearchCanvas';
+import CausalInferenceExplorer from './components/CausalInferenceExplorer';
+import UncertaintyQuantificationCenter from './components/UncertaintyQuantificationCenter';
+import KnowledgeBaseNavigator from './components/KnowledgeBaseNavigator';
+import ResearchOutputStudio from './components/ResearchOutputStudio';
+import PerformanceAnalyticsSuite from './components/PerformanceAnalyticsSuite';
+import ResearchEthicsBiasMonitor from './components/ResearchEthicsBiasMonitor';
 
 function App() {
   return (
@@ -29,6 +37,14 @@ function App() {
           <Route path="/ad-workbench" element={<ADWorkbenchQueryInterface />} />
           <Route path="/orchestrator" element={<AdvancedOrchestratorControls />} />
           <Route path="/learning-dashboard" element={<LearningDashboard />} />
+          <Route path="/evolution-dashboard" element={<EvolutionDashboard />} />
+          <Route path="/research-canvas" element={<ResearchCanvas />} />
+          <Route path="/causal-inference" element={<CausalInferenceExplorer />} />
+          <Route path="/uncertainty-center" element={<UncertaintyQuantificationCenter />} />
+          <Route path="/knowledge-base" element={<KnowledgeBaseNavigator />} />
+          <Route path="/research-output" element={<ResearchOutputStudio />} />
+          <Route path="/performance-analytics" element={<PerformanceAnalyticsSuite />} />
+          <Route path="/ethics-monitor" element={<ResearchEthicsBiasMonitor />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </div>
