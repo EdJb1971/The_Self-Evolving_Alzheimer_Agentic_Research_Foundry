@@ -45,6 +45,16 @@ AlzNexus is engineered with a comprehensive set of features to enable its autono
 *   **Multi-Agent Collaboration and Debate:** Sub-agents can engage in structured debates to resolve conflicting information or evaluate alternative hypotheses, leading to more robust conclusions.
 *   **Dynamic Agent Discovery and Registration Service:** Enables sub-agents to dynamically register their capabilities and API endpoints with the Master Orchestrator, enhancing platform flexibility and scalability.
 
+### Causal Inference & Mechanistic Understanding
+*   **Causal Discovery Framework:** Advanced algorithms (PC, FCI, GES) automatically learn causal relationships from observational Alzheimer's data with uncertainty quantification
+*   **Effect Estimation Engine:** DoWhy integration provides causal effect estimation using multiple identification strategies (backdoor, frontdoor, instrumental variables)
+*   **Meta-Learners for Heterogeneity:** S-learners, T-learners, and X-learners estimate individual-level treatment effects for personalized medicine
+*   **Mechanistic Disease Modeling:** Physics-informed neural networks simulate Alzheimer's progression with biological constraints
+*   **Biological Pathway Integration:** KEGG and Reactome pathway validation ensures causal findings align with known molecular biology
+*   **Intervention Simulation:** Counterfactual analysis predicts outcomes of hypothetical treatments and interventions
+*   **Scientific Paradigm Shift:** Moves from correlation ("what correlates?") to causation ("why does it happen?") in Alzheimer's research
+*   **Clinical Translation:** Direct insights for drug target selection, clinical trial optimization, and treatment mechanism understanding
+
 ### AD Workbench Integration & User Interaction
 *   **Native AD Workbench Deployment:** Deployed as an official app/plugin within the AD Workbench marketplace for seamless access and installation.
 *   **Secure Data Access:** Exclusively uses AD Workbench APIs and federated queries, ensuring no raw patient data is moved or exposed outside the secure environment.
@@ -184,6 +194,18 @@ AlzNexus employs a robust microservices-oriented architecture designed for long-
 - **Closed Feedback Loop:** Learning → Knowledge Base → RAG → Agent Enrichment → New Learning cycle
 - **Production-Ready Reliability:** 24/7 operation capability with enterprise-grade error handling
 
+### ✅ Completed (Scientific Phase 7: Causal Inference & Mechanistic Understanding)
+- **World-Class Causal Inference Service:** Complete microservice implementing cutting-edge causal discovery and effect estimation
+- **Causal Discovery Framework:** PC, FCI, and GES algorithms with bootstrap uncertainty quantification for learning causal graphs
+- **DoWhy Integration:** Microsoft's causal inference framework with multiple identification strategies (backdoor, frontdoor, IV)
+- **Meta-Learners Implementation:** S-learners, T-learners, and X-learners for heterogeneous treatment effect estimation
+- **Mechanistic Disease Modeling:** Physics-informed neural networks (PINNs) with biological constraints for Alzheimer's progression
+- **Biological Integration:** BioServices integration with KEGG/Reactome pathways for scientific validation
+- **Intervention Simulation:** Counterfactual analysis and "what-if" scenario modeling for treatment outcomes
+- **Scientific Paradigm Shift:** Moves from correlation to true causation in understanding Alzheimer's mechanisms
+- **Clinical Translation:** Direct insights for drug target selection, trial optimization, and personalized medicine
+- **Production Architecture:** FastAPI service with Celery async processing, comprehensive testing, and enterprise-grade reliability
+
 ### ✅ Completed (Full System Integration & Testing)
 - **9 Microservice Architecture:** Complete integration of orchestrator, 8 specialized agents, and 8 supporting services
 - **End-to-End Research Pipeline:** From data scanning through hypothesis validation to insight delivery
@@ -281,6 +303,7 @@ pip install -r src/backend/alznexus_adworkbench_proxy/requirements.txt
 pip install -r src/backend/alznexus_statistical_engine/requirements.txt
 pip install -r src/backend/alznexus_knowledge_base/requirements.txt
 pip install -r src/backend/alznexus_autonomous_learning/requirements.txt
+pip install -r src/backend/alznexus_causal_inference/requirements.txt
 
 # Install Node.js dependencies
 cd src/frontend/alznexus_ui
@@ -391,6 +414,20 @@ REDIS_URL=redis://localhost:6379
 ORCHESTRATOR_API_URL=http://localhost:8001
 AGENT_SERVICE_BASE_URL=http://localhost:8001
 AGENT_API_KEY=test_agent_key
+```
+
+**`src/backend/alznexus_causal_inference/.env`:**
+```env
+# Causal Inference Service Environment Variables
+DATABASE_URL=postgresql://user:password@localhost/alznexus_causal
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/0
+API_KEY=test_causal_key_123
+REDIS_URL=redis://localhost:6379
+ADWORKBENCH_API_KEY=test_adworkbench_key
+LLM_SERVICE_URL=http://localhost:8001
+AGENT_REGISTRY_URL=http://localhost:8002
+AUDIT_TRAIL_URL=http://localhost:8003
 ```
 
 #### 4. Start Redis Server

@@ -1,0 +1,88 @@
+# Core Causal Inference Libraries
+causal-learn==0.1.3.4          # Causal discovery algorithms (formerly causal-discovery)
+dowhy==0.11.1                    # Microsoft's causal inference framework
+causalml==0.15.1                 # Causal machine learning
+causalnex==0.12.1                # Probabilistic causal graphs
+
+# Biological Integration
+bioservices==1.11.2              # KEGG, Reactome, UniProt APIs
+mygene==3.2.2                    # Gene annotation and pathway data
+gseapy==1.1.3                    # Gene set enrichment analysis
+
+# Advanced Statistical Modeling
+pymc==5.15.1                     # Probabilistic programming for causal models
+arviz==0.18.0                    # Bayesian analysis and visualization
+scikit-learn==1.5.1              # Machine learning utilities
+statsmodels==0.14.2              # Advanced statistical models
+
+# Graph and Network Analysis
+networkx==3.3                    # Graph algorithms for causal structures
+igraph==0.11.6                   # High-performance graph library
+pygraphviz==1.13                 # Graph visualization
+
+# Scientific Computing
+numpy==1.26.4                    # Numerical computing
+pandas==2.2.2                    # Data manipulation
+scipy==1.13.1                    # Scientific computing
+matplotlib==3.9.0                # Plotting and visualization
+seaborn==0.13.2                  # Statistical visualization
+
+# Machine Learning & Deep Learning
+torch==2.3.1                     # PyTorch for neural causal models
+torch-geometric==2.5.3           # Graph neural networks
+xgboost==2.0.3                   # Gradient boosting for causal forests
+lightgbm==4.4.0                  # Fast gradient boosting
+
+# Uncertainty Quantification
+uncertainty-toolbox==0.1.4       # Uncertainty quantification
+bayesian-optimization==1.4.3     # Bayesian optimization for causal discovery
+
+# API and Web Framework
+fastapi==0.111.0                 # Modern async web framework
+uvicorn==0.30.1                  # ASGI server
+pydantic==2.8.2                  # Data validation
+httpx==0.27.0                    # Async HTTP client
+
+# Database and Caching
+sqlalchemy==2.0.30               # ORM for database operations
+alembic==1.13.1                  # Database migrations
+redis==5.0.4                     # Caching and session storage
+pymongo==4.7.3                   # MongoDB driver for document storage
+
+# Task Processing
+celery==5.4.0                    # Distributed task queue
+flower==2.0.1                    # Celery monitoring
+
+# Testing and Validation
+pytest==8.2.2                    # Testing framework
+pytest-asyncio==0.23.7           # Async testing
+pytest-cov==5.0.0                # Coverage reporting
+hypothesis==6.100.2              # Property-based testing
+
+# Logging and Monitoring
+structlog==24.1.0                # Structured logging
+sentry-sdk==2.8.0                # Error monitoring
+prometheus-client==0.20.0        # Metrics collection
+
+# Configuration and Environment
+python-dotenv==1.0.0             # Environment variables
+pydantic-settings==2.3.4         # Settings management
+
+# Performance and Optimization
+numba==0.60.0                    # JIT compilation for performance
+dask==2024.7.1                   # Parallel computing
+joblib==1.4.2                    # Parallel processing
+
+# Data Validation and Serialization
+orjson==3.10.5                   # Fast JSON serialization
+msgpack==1.0.8                   # Efficient serialization
+
+# Security
+cryptography==42.0.8             # Cryptographic functions
+bcrypt==4.1.3                    # Password hashing
+
+# Development Tools
+black==24.4.2                    # Code formatting
+isort==5.13.2                    # Import sorting
+mypy==1.10.0                     # Type checking
+flake8==7.1.0                    # Linting

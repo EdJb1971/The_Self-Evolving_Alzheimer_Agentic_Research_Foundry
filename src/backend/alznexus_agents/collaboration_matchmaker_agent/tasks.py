@@ -350,17 +350,16 @@ Format your response as a JSON object with this structure:
             )
             self.update_state(state='FAILURE', meta={'exc_type': type(e).__name__, 'exc_message': error_message})
             raise
-        except Exception as e:
-            attempt += 1
-            if attempt <= max_retries:
-                delay = calculate_backoff_with_jitter(attempt, base_delay=1.0, jitter_factor=0.3)
-                logger.warning(f"Task {agent_task_id} failed (attempt {attempt}/{max_retries}), retrying in {delay:.2f} seconds: {str(e)}")
-                time.sleep(delay)
-            else:
-                logger.error(f"Task {agent_task_id} failed after {max_retries} attempts: {str(e)}")
-                raise
         finally:
             db.close()
+        attempt += 1
+        if attempt <= max_retries:
+            delay = calculate_backoff_with_jitter(attempt, base_delay=1.0, jitter_factor=0.3)
+            logger.warning(f"Task {agent_task_id} failed (attempt {attempt}/{max_retries}), retrying in {delay:.2f} seconds: {str(e)}")
+            time.sleep(delay)
+        else:
+            logger.error(f"Task {agent_task_id} failed after {max_retries} attempts: {str(e)}")
+            raise
 
 @celery_app.task(bind=True, name="perform_reflection_task")
 def perform_reflection_task(self, agent_id: str, reflection_metadata: dict):
