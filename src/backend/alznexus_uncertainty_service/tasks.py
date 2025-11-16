@@ -4,12 +4,28 @@ import os
 import logging
 from typing import Dict, Any, List
 import numpy as np
-import pymc3 as pm
-import arviz as az
+try:
+    import pymc3 as pm
+    PYMC3_AVAILABLE = True
+except ImportError:
+    PYMC3_AVAILABLE = False
+    pm = None
+try:
+    import arviz as az
+    ARVIZ_AVAILABLE = True
+except ImportError:
+    ARVIZ_AVAILABLE = False
+    az = None
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler
-import tensorflow as tf
-import tensorflow_probability as tfp
+try:
+    import tensorflow as tf
+    import tensorflow_probability as tfp
+    TENSORFLOW_AVAILABLE = True
+except ImportError:
+    TENSORFLOW_AVAILABLE = False
+    tf = None
+    tfp = None
 from scipy import stats
 import pandas as pd
 from sqlalchemy.orm import Session
@@ -39,6 +55,9 @@ class BayesianNeuralNetwork:
 
     def build_model(self, X_train: np.ndarray, y_train: np.ndarray):
         """Build PyMC3 Bayesian neural network model"""
+        if not PYMC3_AVAILABLE:
+            raise ImportError("PyMC3 not available. Install with: pip install pymc3")
+
         X_scaled = self.scaler.fit_transform(X_train)
 
         with pm.Model() as self.model:
@@ -244,6 +263,9 @@ class MonteCarloUncertainty:
 
     def build_ensemble(self, input_dim: int, hidden_dims: List[int] = [64, 32]):
         """Build ensemble of neural networks with dropout"""
+        if not TENSORFLOW_AVAILABLE:
+            raise ImportError("TensorFlow not available. Install with: pip install tensorflow tensorflow-probability")
+
         for i in range(self.n_models):
             model = tf.keras.Sequential()
             model.add(tf.keras.layers.InputLayer(input_shape=(input_dim,)))
@@ -1488,6 +1510,7 @@ def _validate_evolution_improvements(
 
     # Calculate distillation effectiveness score
     # This measures how well knowledge was transferred while allowing improvement
+    avg_improvement = np.mean([v for k, v in improvements.items() if 'mse' in k])
     distillation_score = min(1.0, max(0.0, avg_improvement * 2.0 + 0.7))  # Scale to 0.7-1.0 range based on improvement
 
     # If significant improvement detected, boost distillation score
@@ -1587,3 +1610,71 @@ def _calculate_alignment_improvement(
     evolved_alignment = _calculate_trend_alignment(evolved_vals.tolist(), expected_trend)
 
     return evolved_alignment - existing_alignment
+
+
+def _calculate_trend_alignment(values: List[float], expected_trend: str) -> float:
+    """Calculate how well values align with expected trend"""
+    if expected_trend == "increasing":
+        # Check if values are generally increasing
+        diffs = [values[i+1] - values[i] for i in range(len(values)-1)]
+        positive_fraction = sum(1 for d in diffs if d > 0) / len(diffs)
+        return positive_fraction
+    elif expected_trend == "decreasing":
+        # Check if values are generally decreasing
+        diffs = [values[i+1] - values[i] for i in range(len(values)-1)]
+        negative_fraction = sum(1 for d in diffs if d < 0) / len(diffs)
+        return negative_fraction
+    else:
+        return 0.5  # Neutral alignment
+
+
+def _assess_biological_plausibility(
+    evolved_model: 'AlzheimerPINN',
+    updated_constraints: Dict[str, Any],
+    biological_feedback: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Assess biological plausibility of evolved model"""
+    plausibility_checks = []
+
+    # Check amyloid beta levels stay within biological ranges
+    amyloid_range_check = updated_constraints.get('amyloid_max', 0.8) <= 1.0
+    plausibility_checks.append(('amyloid_range', amyloid_range_check))
+
+    # Check tau protein coupling is biologically reasonable
+    tau_coupling = updated_constraints.get('tau_amyloid_interaction', 0.05)
+    tau_coupling_check = 0.01 <= tau_coupling <= 0.2
+    plausibility_checks.append(('tau_coupling', tau_coupling_check))
+
+    # Check cognitive decline rates are realistic
+    cognitive_rate = updated_constraints.get('cognitive_decline_rate', 0.1)
+    cognitive_check = 0.05 <= cognitive_rate <= 0.3
+    plausibility_checks.append(('cognitive_rate', cognitive_check))
+
+    # Calculate overall plausibility score
+    passed_checks = sum(1 for _, passed in plausibility_checks if passed)
+    plausibility_score = passed_checks / len(plausibility_checks)
+
+    return {
+        'plausibility_score': plausibility_score,
+        'checks_passed': passed_checks,
+        'total_checks': len(plausibility_checks),
+        'detailed_results': dict(plausibility_checks)
+    }
+
+
+def _calculate_feedback_alignment(
+    feedback_data: Dict[str, Any],
+    evolved_model: 'AlzheimerPINN'
+) -> float:
+    """Calculate how well evolved model aligns with feedback data"""
+    alignment_score = 0.5  # Default neutral score
+
+    # Check if feedback metrics improved
+    if 'performance_metrics' in feedback_data:
+        metrics = feedback_data['performance_metrics']
+        if 'accuracy_improvement' in metrics and metrics['accuracy_improvement'] > 0:
+            alignment_score += 0.2
+        if 'biological_plausibility' in metrics and metrics['biological_plausibility'] > 0.8:
+            alignment_score += 0.2
+
+    return min(1.0, max(0.0, alignment_score))

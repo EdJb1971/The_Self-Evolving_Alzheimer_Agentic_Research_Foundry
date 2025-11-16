@@ -35,7 +35,7 @@ const ResearchCanvas: React.FC = () => {
   const flowRef = useRef<HTMLDivElement>(null);
   const debateRef = useRef<HTMLDivElement>(null);
   const [cy, setCy] = useState<cytoscape.Core | null>(null);
-  const [currentSession, setCurrentSession] = useState<ResearchSession>({
+  const [currentSession] = useState<ResearchSession>({
     id: 'session-1',
     query: 'Investigate novel biomarkers for early Alzheimer\'s detection',
     agents: [
@@ -46,13 +46,13 @@ const ResearchCanvas: React.FC = () => {
       { id: 'pathway-modeler', name: 'Pathway Modeler', specialty: 'Disease Modeling', status: 'learning', performance: 91, connections: ['hypothesis-validator', 'data-harmonizer'] },
       { id: 'data-harmonizer', name: 'Data Harmonizer', specialty: 'Data Integration', status: 'active', performance: 88, connections: ['pathway-modeler', 'collaboration-matchmaker'] },
       { id: 'collaboration-matchmaker', name: 'Collaboration Matchmaker', specialty: 'Team Formation', status: 'idle', performance: 90, connections: ['data-harmonizer', 'trial-optimizer'] },
-      { id: 'trial-optimizer', name: 'Trial Optimizer', specialty: 'Clinical Trials', status: 'pending', performance: 86, connections: ['drug-screener', 'collaboration-matchmaker'] }
+      { id: 'trial-optimizer', name: 'Trial Optimizer', specialty: 'Clinical Trials', status: 'idle', performance: 86, connections: ['drug-screener', 'collaboration-matchmaker'] }
     ],
     tasks: [
       { id: 'task-1', description: 'Identify candidate biomarkers from literature', status: 'completed', assignedAgents: ['biomarker-hunter', 'literature-bridger'], progress: 100 },
       { id: 'task-2', description: 'Validate biomarker hypotheses statistically', status: 'in_progress', assignedAgents: ['hypothesis-validator'], progress: 75 },
       { id: 'task-3', description: 'Model disease pathways with PINNs', status: 'pending', assignedAgents: ['pathway-modeler'], progress: 0 },
-      { id: 'task-4', description: 'Screen potential therapeutic compounds', status: 'idle', assignedAgents: ['drug-screener'], progress: 0 }
+      { id: 'task-4', description: 'Screen potential therapeutic compounds', status: 'pending', assignedAgents: ['drug-screener'], progress: 0 }
     ],
     debateHistory: [
       { agent: 'biomarker-hunter', message: 'Found 15 promising biomarkers in recent GWAS studies', timestamp: '10:30:15' },
@@ -101,7 +101,7 @@ const ResearchCanvas: React.FC = () => {
           nodeSep: 100,
           edgeSep: 50,
           rankSep: 100
-        }
+        } as any
       });
 
       setCy(cytoscapeInstance);
@@ -126,7 +126,7 @@ const ResearchCanvas: React.FC = () => {
     if (cy) {
       cy.elements().remove();
       cy.add(generateNetworkElements());
-      cy.layout({ name: 'dagre', rankDir: 'TB' }).run();
+      cy.layout({ name: 'dagre', rankDir: 'TB' } as any).run();
     }
   }, [cy, currentSession]);
 

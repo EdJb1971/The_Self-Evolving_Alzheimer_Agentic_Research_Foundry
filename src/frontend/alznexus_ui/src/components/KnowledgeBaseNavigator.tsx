@@ -135,7 +135,7 @@ const KnowledgeBaseNavigator: React.FC = () => {
 
     svg.append('g')
       .attr('transform', `translate(${margin.left},0)`)
-      .call(d3.axisLeft(yScale).tickFormat(d => `${(d * 100).toFixed(0)}%`));
+      .call(d3.axisLeft(yScale).tickFormat(d => `${(d as number * 100).toFixed(0)}%`));
 
     // Add knowledge accumulation line
     const cumulativeData = knowledgeItems
@@ -214,7 +214,6 @@ const KnowledgeBaseNavigator: React.FC = () => {
 
     const width = 600;
     const height = 300;
-    const margin = { top: 20, right: 20, bottom: 60, left: 60 };
 
     svg.attr('width', width).attr('height', height);
 
@@ -316,7 +315,7 @@ const KnowledgeBaseNavigator: React.FC = () => {
         {searchResults.length > 0 && (
           <div className="space-y-4">
             <h3 className="font-semibold text-gray-700">Search Results ({searchResults.length})</h3>
-            {searchResults.map((result, index) => (
+            {searchResults.map((result, _index) => (
               <div
                 key={result.item.id}
                 className="bg-white p-4 rounded-lg border cursor-pointer hover:shadow-md transition-shadow"

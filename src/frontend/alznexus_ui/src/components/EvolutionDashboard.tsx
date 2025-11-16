@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import * as d3 from 'd3';
 import Plotly from 'plotly.js';
 import { getEvolutionMetrics, getEvolutionTrajectory, getKnowledgeGrowth } from '../api/alznexusApi';
 import { AxiosError } from 'axios';

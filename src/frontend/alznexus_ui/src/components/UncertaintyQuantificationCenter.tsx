@@ -2,14 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import Plotly from 'plotly.js';
 
-interface BayesianNode {
-  id: string;
-  name: string;
-  distribution: 'beta' | 'normal' | 'gamma';
-  parameters: number[];
-  parents: string[];
-}
-
 interface MonteCarloResult {
   variable: string;
   mean: number;
@@ -32,13 +24,6 @@ const UncertaintyQuantificationCenter: React.FC = () => {
   const pinnRef = useRef<HTMLDivElement>(null);
   const riskRef = useRef<HTMLDivElement>(null);
   const powerRef = useRef<HTMLDivElement>(null);
-
-  const [bayesianNetwork] = useState<BayesianNode[]>([
-    { id: 'biomarker1', name: 'Amyloid-β', distribution: 'beta', parameters: [2, 8], parents: [] },
-    { id: 'biomarker2', name: 'Tau Protein', distribution: 'beta', parameters: [3, 7], parents: ['biomarker1'] },
-    { id: 'cognitive', name: 'Cognitive Score', distribution: 'normal', parameters: [25, 5], parents: ['biomarker1', 'biomarker2'] },
-    { id: 'progression', name: 'Disease Progression', distribution: 'beta', parameters: [1, 9], parents: ['cognitive'] }
-  ]);
 
   const [monteCarloResults] = useState<MonteCarloResult[]>([
     {
@@ -89,7 +74,6 @@ const UncertaintyQuantificationCenter: React.FC = () => {
 
     const width = 600;
     const height = 400;
-    const margin = { top: 20, right: 20, bottom: 60, left: 60 };
 
     svg.attr('width', width).attr('height', height);
 

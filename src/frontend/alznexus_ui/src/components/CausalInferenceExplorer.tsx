@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import cytoscape from 'cytoscape';
 import dagre from 'cytoscape-dagre';
-import * as d3 from 'd3';
 import Plotly from 'plotly.js';
 
 cytoscape.use(dagre);
@@ -110,7 +109,7 @@ const CausalInferenceExplorer: React.FC = () => {
           nodeSep: 120,
           edgeSep: 80,
           rankSep: 120
-        }
+        } as any
       });
 
       setCy(cytoscapeInstance);
@@ -226,7 +225,7 @@ const CausalInferenceExplorer: React.FC = () => {
       margin: { t: 50, r: 50, l: 60, b: 100 }
     };
 
-    Plotly.newPlot(interventionRef.current, data, layout);
+    Plotly.newPlot(interventionRef.current, data as any, layout as any);
   };
 
   const createEffectSizePlot = () => {
@@ -268,7 +267,7 @@ const CausalInferenceExplorer: React.FC = () => {
       margin: { t: 50, r: 80, l: 60, b: 50 }
     };
 
-    Plotly.newPlot(effectSizeRef.current, data, layout);
+    Plotly.newPlot(effectSizeRef.current, data as any, layout as any);
   };
 
   const runCounterfactualAnalysis = (intervention: string) => {
