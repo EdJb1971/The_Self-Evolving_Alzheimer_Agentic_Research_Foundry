@@ -1,6 +1,6 @@
 # AlzNexus Agentic Autonomy Platform
 
-![AlzNexus Logo](https://example.com/alznexus-logo.png) <!-- Placeholder for a project logo -->
+
 
 ## Project Overview
 
