@@ -13,7 +13,7 @@ Our primary objective is to seamlessly integrate with the AD Workbench, utilizin
 *   AD Workbench Platform Team
 *   Open Source Community
 *   Patients and Caregivers (indirect beneficiaries)
-*   Funding Organizations/Prize Judges
+*   Funding Organizations
 
 ## Features
 
